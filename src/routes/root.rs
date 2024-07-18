@@ -1,10 +1,14 @@
-use crate::components;
-use hypertext::{html_elements, rsx, Renderable, Rendered};
+use maud::{html, Markup};
 
-pub fn root() -> Rendered<String> {
-    return components::base(rsx! {
-        <p>"Hello from p tag!"</p>
-        {components::button::c(rsx! {"Hello"})}
-    })
-    .render();
+use crate::components;
+// use hypertext::{html_elements, rsx, Renderable, Rendered};
+
+pub fn root() -> Markup {
+    return components::base(html! {
+        // p { "ptag" }
+        // (components::button::c(html! { p {"button"}}))
+        div class="flex justify-center gap-4 h-4/5" {
+            div id="calendar" class="h-full w-1/2" {}
+        }
+    });
 }
