@@ -1,0 +1,6 @@
+services:
+  webserver:
+    build: .
+    restart: always
+    ports:
+      - 80:8080

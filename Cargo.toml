@@ -1,0 +1,15 @@
+[package]
+name = "scheduler"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = "0.7.5"
+html-node = "0.5.0"
+hypertext = { version = "*", features = ["axum"] }
+rstml = "0.11.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.68"
+tokio = { version = "1.0", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
