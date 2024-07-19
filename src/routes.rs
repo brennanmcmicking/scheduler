@@ -12,5 +12,5 @@ pub fn make_app() -> Router {
         .nest_service("/assets", ServeDir::new("assets"))
         // `GET /` goes to `root`
         .route("/", get(root::root()))
-        .route("/search", post(search::search()));
+        .route("/search", post(search::search));
 }

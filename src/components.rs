@@ -1,7 +1,7 @@
 use maud::{html, Markup};
 
 pub mod button;
-pub mod searchResult;
+pub mod search_result;
 
 pub fn base(content: Markup) -> Markup {
     html! {
@@ -12,7 +12,7 @@ pub fn base(content: Markup) -> Markup {
                 script src="/assets/tailwind.js" {}
             }
             body class="bg-slate-100" {
-            div class="w-full bg-slate-800 flex justify-center gap-4" {
+            div class="w-full bg-slate-800 flex justify-center gap-4 mb-1" {
                 div class="bg-slate-400 rounded p-1 my-1" { "scheduler" }
             }
                 (content)
