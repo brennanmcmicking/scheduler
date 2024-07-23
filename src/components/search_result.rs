@@ -1,9 +1,9 @@
 use maud::{html, Markup};
 
-pub fn c(courses: Vec<String>) -> Markup {
+pub fn c(courses: &Vec<&String>) -> Markup {
     return html! {
         div {
-            @for course in &courses {
+            @for course in courses {
                 form class="flex border-b justify-between items-center" {
                     div class="" {
                         (course)

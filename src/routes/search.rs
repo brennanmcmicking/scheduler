@@ -1,31 +1,25 @@
-use axum::Form;
+use axum::{extract::State, Form};
 use maud::{html, Markup};
 use serde::Deserialize;
 
 use crate::components;
+
+use super::AppState;
 
 #[derive(Deserialize)]
 pub struct Search {
     search: String,
 }
 
-pub async fn search(Form(query): Form<Search>) -> Markup {
-    let mut courses: Vec<String> = Vec::new();
-    courses.push("MATH100".to_string());
-    courses.push("CSC111".to_string());
-    courses.push("ENGR110".to_string());
-    courses.push("MATH122".to_string());
-    courses.push("MATH110".to_string());
-    courses.push("ENGR141".to_string());
-    courses.push("CSC225".to_string());
-    courses.push("PHYS111".to_string());
+pub async fn search<S: AppState>(State(state): State<S>, Form(query): Form<Search>) -> Markup {
     println!("{}", query.search);
-    let search = String::from(query.search);
-    let result = courses
-        .into_iter()
+    let search = String::from(query.search).to_lowercase();
+    let result: Vec<&String> = state
+        .courses()
+        .iter()
         .filter(|x| x.contains(&search))
         .collect();
     html! {
-        (components::search_result::c(result))
+        (components::search_result::c(&result))
     }
 }
