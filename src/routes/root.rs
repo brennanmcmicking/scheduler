@@ -8,7 +8,7 @@ use super::AppState;
 // use hypertext::{html_elements, rsx, Renderable, Rendered};
 //
 
-pub async fn root<'a, S: AppState>(State(state): State<S>, cookie: CookieJar) -> Markup {
+pub async fn root<S: AppState>(State(state): State<S>, cookie: CookieJar) -> Markup {
     let user_state = cookie.get("state");
 
     if let Some(user_state) = user_state {
