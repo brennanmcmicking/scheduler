@@ -1,13 +1,27 @@
 use axum::extract::State;
+use axum_extra::extract::CookieJar;
 use maud::{html, Markup};
 
 use crate::components;
 
 use super::AppState;
 // use hypertext::{html_elements, rsx, Renderable, Rendered};
+//
 
-pub async fn root<S: AppState>(State(state): State<S>) -> Markup {
-    let courses = state.courses().iter().collect();
+pub async fn root<'a, S: AppState>(State(state): State<S>, cookie: CookieJar) -> Markup {
+    let user_state = cookie.get("state");
+
+    if let Some(user_state) = user_state {
+        // parse the cookie here
+        dbg!(&user_state);
+        let courses = Vec::new();
+        render(&courses)
+    } else {
+        render(state.courses())
+    }
+}
+
+fn render(courses: &Vec<String>) -> Markup {
     return components::base(html! {
         div class="flex justify-center gap-4 h-4/5" {
             div id="search-container" class="flex flex-col gap-1" {
