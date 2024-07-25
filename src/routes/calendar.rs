@@ -14,9 +14,9 @@ pub struct Search {
 }
 
 // curl
-// -H "Content-Type: application/json"
+// -H "Content-Type: application/x-www-form-urlencoded"
 // -X PUT "http://localhost:8080/calendar"
-// -d '{"crn": ["123", "456"]}'
+// -d "crn=123&crn=456"
 pub async fn add_to_calendar<S: AppState>(
     State(_state): State<S>,
     Extension(user_state): CookieUserState,
