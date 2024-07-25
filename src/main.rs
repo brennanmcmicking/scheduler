@@ -16,6 +16,14 @@ async fn main() {
     courses.push("engr141".to_string());
     courses.push("csc225".to_string());
     courses.push("phys111".to_string());
+    courses.push("ece260".to_string());
+    courses.push("seng265".to_string());
+    courses.push("seng475".to_string());
+    courses.push("seng371".to_string());
+    courses.push("math109".to_string());
+    courses.push("csc115".to_string());
+    courses.push("csc320".to_string());
+    courses.push("phys120".to_string());
 
     // build our application with a route
     let app = routes::make_app(courses);
