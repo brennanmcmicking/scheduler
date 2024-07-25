@@ -13,7 +13,8 @@ pub struct Search {
 
 pub async fn search<S: AppState>(State(state): State<S>, Form(query): Form<Search>) -> Markup {
     println!("{}", query.search);
-    let search = String::from(query.search).to_lowercase();
+    let mut search = String::from(query.search).to_lowercase();
+    search.retain(|c| !c.is_whitespace());
     let result: Vec<&String> = state
         .courses()
         .iter()
