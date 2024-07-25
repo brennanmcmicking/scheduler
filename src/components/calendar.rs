@@ -2,7 +2,7 @@ use maud::{html, Markup};
 
 use crate::components;
 
-pub fn c(courses: &Vec<&String>) -> Markup {
+pub fn c(courses: &Vec<String>) -> Markup {
     return html! {
         div id="calendar-container" class="flex flex-col w-full h-full" {
             div id="calendar-view-container" class="w-full h-1/2 flex justify-center items-center p-1 bg-white" {
