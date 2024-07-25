@@ -1,13 +1,16 @@
-use axum::extract::State;
-use axum_extra::extract::CookieJar;
+use crate::middlewares::CookieUserState;
+use axum::extract::{Extension, State};
 use maud::{html, Markup};
 
 use crate::components;
 
 use super::AppState;
 
-pub async fn root<S: AppState>(State(state): State<S>, cookie: CookieJar) -> Markup {
-    let search_results = if let Some(user_state) = cookie.get("state") {
+pub async fn root<S: AppState>(
+    State(state): State<S>,
+    Extension(cookie): CookieUserState,
+) -> Markup {
+    let search_results = if let Some(user_state) = cookie {
         // parse the cookie here
         // TODO: currently (of my expectation) the cookie contains the
         // comma seperated CRN's. Need to query Malcolm's scraped data
@@ -31,10 +34,10 @@ pub async fn root<S: AppState>(State(state): State<S>, cookie: CookieJar) -> Mar
                 }
                 div id="search-results" class="w-full h-full rounded-lg border-2 border-black p-1 bg-white" {
                     (search_results)
-                }
-            }
-            div id="calendar-view" class="w-3/5 rounded-lg border-2 border-black bg-white" {
             }
         }
+        div id="calendar-view" class="w-3/5 rounded-lg border-2 border-black bg-white" {
+        }
+    }
     });
 }
