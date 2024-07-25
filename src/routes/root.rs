@@ -8,19 +8,26 @@ use super::AppState;
 
 pub async fn root<S: AppState>(
     State(state): State<S>,
-    Extension(cookie): CookieUserState,
+    Extension(user_state): CookieUserState,
 ) -> Markup {
-    let search_results = if let Some(user_state) = cookie {
-        // parse the cookie here
-        // TODO: currently (of my expectation) the cookie contains the
-        // comma seperated CRN's. Need to query Malcolm's scraped data
-        // for whatever attributes needed for course display.
-        dbg!(&user_state);
-        let courses: Vec<String> = Vec::new();
-    } else {
-    };
+    dbg!(&user_state);
+
+    let courses: Vec<String> = state
+        .courses()
+        .iter()
+        .filter(|x| {
+            user_state
+                .selection
+                .clone()
+                .iter()
+                .filter(|course| course.name == **x)
+                .count()
+                == 0
+        })
+        .map(|course| course.to_owned())
+        .collect();
 
     return components::base(html! {
-        (components::calendar::c(state.courses()))
+        (components::calendar::c(&courses))
     });
 }

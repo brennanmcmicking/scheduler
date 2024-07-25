@@ -8,7 +8,9 @@ pub fn c(courses: &Vec<String>) -> Markup {
                     div class="text-xl" {
                         (course)
                     }
-                    button name="course" value=(course) class="bg-green-500 hover:bg-green-600 rounded-lg h-full p-1 my-1 text-xl" hx-put="/calendar" hx-target="#calendar-view" {
+                    button name="course" value=(course)
+                    class="bg-green-500 hover:bg-green-600 rounded-lg h-full p-1 my-1 text-xl"
+                    hx-put="/calendar" hx-target="#calendar-container" hx-swap="outerHTML" {
                         "add"
                     }
                 }
