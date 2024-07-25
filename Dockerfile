@@ -16,5 +16,6 @@ RUN cargo build --release
 FROM debian:stable-slim
 
 COPY --from=build /scheduler/target/release/scheduler .
+COPY ./assets ./assets
 
 CMD ["./scheduler"]
