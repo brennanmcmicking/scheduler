@@ -1,7 +1,7 @@
 use maud::{html, Markup};
 
 pub mod button;
-pub mod calendar;
+pub mod container;
 pub mod search_result;
 
 pub fn base(content: Markup) -> Markup {
@@ -13,8 +13,8 @@ pub fn base(content: Markup) -> Markup {
                 script src="/assets/tailwind.js" {}
                 meta name="viewport" content="width=device-width,initial-scale=1.0" {}
             }
-            body class="bg-slate-100" {
-                div id="app-container" class="lg:px-64 xl:px-96" {
+            body class="bg-slate-100 dark:bg-neutral-900" {
+                div id="app-container" class="lg:px-64" {
                     (content)
                 }
             }
