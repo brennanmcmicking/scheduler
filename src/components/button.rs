@@ -3,7 +3,7 @@ use maud::{html, Markup};
 
 pub fn c(content: Markup) -> Markup {
     html! {
-        button class="border-2 rounded bg-slate-200 p-1 m-1" hx-post="/clicked" {
+        button class="border-2 rounded bg-slate-200 dark:bg-slate-700 p-1 m-1" hx-post="/clicked" {
             (content)
         }
     }

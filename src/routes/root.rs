@@ -28,6 +28,6 @@ pub async fn root<S: AppState>(
         .collect();
 
     return components::base(html! {
-        (components::calendar::c(&courses))
+        (components::container::c(&courses))
     });
 }
