@@ -2,13 +2,29 @@
 name = "scheduler"
 version = "0.1.0"
 edition = "2021"
+default-run = "backend"
+
+[[bin]]
+name = "backend"
+path = "src/main.rs"
+
+[[bin]]
+name = "scraper"
+path = "src/scraper/main.rs"
+
 
 [dependencies]
+anyhow = "1.0.86"
 axum = { version = "0.7.5", features = ["default", "tokio"] }
 axum-extra = { version = "0.9.3", features = ["cookie"] }
+clap = { version = "4.5.9", features = ["derive"] }
+futures = "0.3.30"
+jiff = "0.1.1"
 maud = { version = "*", features = ["axum"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.68"
+reqwest = { version = "0.12.5", features = ["cookies", "json"] }
+rusqlite = { version = "0.32.0", features = ["bundled", "backup"] }
 tokio = { version = "1.0", features = ["full"] }
 tower-http = { version = "0.5.2", features = ["fs"] }
 tower = { version = "0.4.13", features = ["default"] }
