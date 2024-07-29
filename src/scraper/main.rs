@@ -1,17 +1,20 @@
 use anyhow::{bail, Ok, Result};
 use clap::{Parser, ValueEnum};
-use jiff::civil::{Date, Time};
+use jiff::{
+    civil::{date, Date, Time},
+    ToSpan, Zoned,
+};
 use rusqlite::Connection;
-use std::{fmt::Display, path::Path, str::FromStr};
+use std::{cmp::Ordering, fmt::Display, path::Path, str::FromStr};
 
-#[derive(Clone, Copy, Debug, ValueEnum)]
-enum Season {
+#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Season {
     Spring,
     Summer,
     Fall,
 }
 
-impl From<Season> for u8 {
+impl From<Season> for i8 {
     fn from(value: Season) -> Self {
         match value {
             Season::Spring => 1,
@@ -21,10 +24,10 @@ impl From<Season> for u8 {
     }
 }
 
-impl TryFrom<u64> for Season {
+impl TryFrom<i64> for Season {
     type Error = anyhow::Error;
 
-    fn try_from(month: u64) -> Result<Season> {
+    fn try_from(month: i64) -> Result<Season> {
         Ok(match month {
             1 => Season::Spring,
             5 => Season::Summer,
@@ -34,10 +37,56 @@ impl TryFrom<u64> for Season {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-struct Term {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Term {
     season: Season,
-    year: u32,
+    year: i16,
+}
+
+impl Term {
+    /// Returns the open-closed [x,y) time range for this term
+    pub fn time_range(self) -> (Zoned, Zoned) {
+        let start = date(self.year, self.season.into(), 1)
+            .intz("America/Vancouver")
+            .unwrap();
+        let end = start.saturating_add(4.months());
+        (start, end)
+    }
+
+    /// Tests whether `time` is during this term
+    pub fn during(self, time: &Zoned) -> bool {
+        let (start, end) = self.time_range();
+        start <= *time && *time < end
+    }
+}
+
+impl PartialOrd for Term {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match self.year.cmp(&other.year) {
+            Ordering::Equal => self.season.partial_cmp(&other.season),
+            ordering => Some(ordering),
+        }
+    }
+}
+
+impl PartialOrd<Zoned> for Term {
+    fn partial_cmp(&self, other: &Zoned) -> Option<Ordering> {
+        let (start, end) = self.time_range();
+
+        if *other < start {
+            Some(Ordering::Greater)
+        } else if *other >= end {
+            Some(Ordering::Less)
+        } else {
+            Some(Ordering::Equal)
+        }
+    }
+}
+
+impl PartialEq<Zoned> for Term {
+    fn eq(&self, other: &Zoned) -> bool {
+        self.during(other)
+    }
 }
 
 impl Display for Term {
@@ -60,34 +109,54 @@ impl FromStr for Term {
         }
         let (year, month) = s.split_at(s.len() - 2);
         let year = year.parse()?;
-        let season = month.parse::<u64>()?.try_into()?;
+        let season = month.parse::<i64>()?.try_into()?;
         Ok(Term { year, season })
     }
 }
 
 #[derive(Parser)]
+/// Downloads section info to SQLite databases in the current folder.
+///
+/// By default, it will only download past terms once, and will always redownload current or future
+/// terms
 struct Args {
     /// Term to scrape from. If missing, scrape all terms.
     ///
     /// Format: YYYYMM
     term: Option<Term>,
+
+    /// Force download term, even if we already have an up-to-date copy
+    #[arg(long, short, default_value_t = false)]
+    force: bool,
+
+    /// Oldest term to possibly fetch, refusing any older terms. This is overridden by the
+    /// positional TERM argument if present
+    #[arg(long, short, value_name = "TERM")]
+    oldest: Option<Term>,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let Args { term: arg_term } = Args::parse();
+    let args = Args::parse();
 
-    let terms = if let Some(term) = arg_term {
+    let terms = if let Some(term) = args.term {
         vec![term]
     } else {
         println!("fetching list of all terms");
-        scrape::fetch_terms().await?
+        let mut terms = scrape::fetch_terms().await?;
+        if let Some(oldest) = args.oldest {
+            terms.retain(|t| t >= &oldest)
+        }
+        terms
     };
+
+    let now = Zoned::now();
 
     // no point in parallelizing, UVic's server is the bottleneck
     for &term in terms.iter() {
         let filename = format!("sections_{}.sqlite3", term);
-        if arg_term.is_none() && Path::new(&filename).exists() {
+
+        if !args.force && term < now && Path::new(&filename).exists() {
             println!("db already downloaded for {}", term);
             continue;
         }
@@ -112,7 +181,7 @@ fn persist<P: AsRef<Path>>(filename: P, sections: &Vec<Section>) -> Result<()> {
 
 /// Store sessions to database `conn`, creating tables and writing rows. Writing to a non-empty
 /// database will likely produce an error.
-fn store_sections(conn: &Connection, sections: &Vec<Section>) -> Result<()> {
+pub fn store_sections(conn: &Connection, sections: &Vec<Section>) -> Result<()> {
     conn.execute_batch(
         "PRAGMA foreign_keys = ON;
 
@@ -209,7 +278,7 @@ fn store_sections(conn: &Connection, sections: &Vec<Section>) -> Result<()> {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct Days {
+pub struct Days {
     monday: bool,
     tuesday: bool,
     wednesday: bool,
@@ -220,7 +289,7 @@ struct Days {
 }
 
 #[derive(Debug, Clone)]
-struct MeetingTime {
+pub struct MeetingTime {
     start_time: Option<Time>,
     end_time: Option<Time>,
     start_date: Date,
@@ -233,7 +302,7 @@ struct MeetingTime {
 }
 
 #[derive(Debug, Clone)]
-struct Section {
+pub struct Section {
     crn: u64,
     subject_code: String,
     course_code: String,
