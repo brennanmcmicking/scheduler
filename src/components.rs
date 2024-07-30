@@ -1,6 +1,7 @@
 use maud::{html, Markup};
 
 pub mod button;
+pub mod calendar;
 pub mod container;
 pub mod search_result;
 

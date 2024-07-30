@@ -5,8 +5,9 @@ use axum::{
 };
 use maud::{html, Markup};
 use serde::Deserialize;
+use std::sync::Arc;
 
-use super::AppState;
+use super::DatabaseAppState;
 
 #[derive(Deserialize, Debug)]
 pub struct Search {
@@ -17,8 +18,8 @@ pub struct Search {
 // -H "Content-Type: application/x-www-form-urlencoded"
 // -X PUT "http://localhost:8080/calendar"
 // -d "crn=123&crn=456"
-pub async fn add_to_calendar<S: AppState>(
-    State(_state): State<S>,
+pub async fn add_to_calendar(
+    State(_state): State<Arc<DatabaseAppState>>,
     Extension(user_state): CookieUserState,
     Form(form): Form<Search>,
 ) -> Markup {
@@ -42,9 +43,9 @@ pub async fn add_to_calendar<S: AppState>(
 // -H "Content-Type: application/json"
 // -X DELETE "http://localhost:8080/calendar"
 // -d '{"crn": ["123", "456"]}'
-pub async fn rm_from_calendar<S: AppState>(
+pub async fn rm_from_calendar(
     user_state: CookieUserState,
-    State(_state): State<S>,
+    State(_state): State<Arc<DatabaseAppState>>,
     Json(course_crn): Json<Search>,
 ) -> Markup {
     println!("rm_to_calendar");
