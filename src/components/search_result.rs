@@ -1,7 +1,7 @@
 use maud::{html, Markup};
 
 pub fn c(courses: &Vec<String>) -> Markup {
-    return html! {
+    html! {
         div {
             @for course in courses {
                 form class="flex border-b dark:border-neutral-400 justify-between items-center mb-0" {
@@ -16,5 +16,5 @@ pub fn c(courses: &Vec<String>) -> Markup {
                 }
             }
         }
-    };
+    }
 }

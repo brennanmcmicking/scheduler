@@ -27,7 +27,7 @@ pub async fn root<S: AppState>(
         .map(|course| course.to_owned())
         .collect();
 
-    return components::base(html! {
+    components::base(html! {
         (components::container::c(&courses))
-    });
+    })
 }
