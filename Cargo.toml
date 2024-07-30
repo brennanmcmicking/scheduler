@@ -32,3 +32,5 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 base64 = "0.22.1"
 regex = "1.10.5"
+r2d2 = "0.8.10"
+r2d2_sqlite = "0.25.0"
