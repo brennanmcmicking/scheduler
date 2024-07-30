@@ -7,7 +7,7 @@ pub fn c(courses: &Vec<String>) -> Markup {
         div id="calendar-container" class="flex flex-col w-full h-full gap-1" {
             div id="calendar-view-container" class="w-full h-1/2 lg:px-1 lg:pt-1" {
                 div class="w-full h-full flex justify-center items-center bg-white dark:bg-neutral-800 dark:text-white lg:rounded-lg shadow-xl" {
-                    "calendar"
+                    (components::calendar::c())
                 }
             }
             div id="interactive-container" class="w-full h-1/2 flex flex-row px-1 pb-1 gap-1" {

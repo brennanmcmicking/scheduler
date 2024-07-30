@@ -37,11 +37,11 @@ pub async fn parse_cookie(
             selection: blank_selection,
         }
     } else {
-        let blank_selection: Vec<Course> = vec![Course {
-            name: "csc111".to_string(),
-            crns: Vec::new(),
-        }];
-
+        let blank_selection: Vec<Course> = Vec::new();
+        // blank_selection.push(Course {
+        //     name: "csc111".to_string(),
+        //     crns: Vec::new(),
+        // });
         UserState {
             selection: blank_selection,
         }

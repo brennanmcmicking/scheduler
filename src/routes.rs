@@ -17,21 +17,7 @@ use crate::{middlewares, scraper::Term};
 mod calendar;
 mod root;
 mod search;
-
-pub trait AppState {
-    fn courses(&self) -> Vec<String>;
-}
-
-#[derive(Clone)]
-pub struct RegularAppState {
-    pub courses: Vec<String>,
-}
-
-impl AppState for RegularAppState {
-    fn courses(&self) -> Vec<String> {
-        self.courses.clone()
-    }
-}
+mod term;
 
 pub struct DatabaseAppState {
     terms: HashMap<Term, r2d2::Pool<SqliteConnectionManager>>,
@@ -75,20 +61,12 @@ impl DatabaseAppState {
         terms
     }
 
-    pub fn get_conn(&self, term: &Term) -> Option<impl DerefMut<Target = Connection>> {
-        self.terms.get(term).and_then(|p| p.get().ok())
-    }
-}
-
-impl AppState for Arc<DatabaseAppState> {
-    fn courses(&self) -> Vec<String> {
-        // FIXME: pass in the term
-        let term = "202409".parse().unwrap();
+    fn courses(&self, term: Term) -> Vec<String> {
         let Some(conn) = self.get_conn(&term) else {
             return Vec::new();
         };
         let mut stmt = conn
-            .prepare("SELECT subject_code, course_code FROM section LIMIT 50")
+            .prepare("SELECT subject_code, course_code FROM section")
             .unwrap();
 
         let mut courses = Vec::new();
@@ -100,9 +78,13 @@ impl AppState for Arc<DatabaseAppState> {
         }
         courses
     }
+
+    pub fn get_conn(&self, term: &Term) -> Option<impl DerefMut<Target = Connection>> {
+        self.terms.get(term).and_then(|p| p.get().ok())
+    }
 }
 
-pub async fn make_app(_courses: Vec<String>) -> Router {
+pub async fn make_app() -> Router {
     type State = Arc<DatabaseAppState>;
 
     let state: State = Arc::new(
@@ -112,14 +94,15 @@ pub async fn make_app(_courses: Vec<String>) -> Router {
     );
 
     let calendar_route = Router::new()
-        .route("/", put(calendar::add_to_calendar::<State>))
-        .route("/", delete(calendar::rm_from_calendar::<State>));
+        .route("/", put(calendar::add_to_calendar))
+        .route("/", delete(calendar::rm_from_calendar));
 
     Router::new()
         .nest_service("/assets", ServeDir::new("assets"))
         // `GET /` goes to `root`
-        .route("/", get(root::root::<State>))
-        .route("/search", post(search::search::<State>))
+        .route("/", get(root::root))
+        .route("/term/:id", get(term::term))
+        .route("/search", post(search::search))
         .nest("/calendar", calendar_route)
         .with_state(state)
         .route_layer(
