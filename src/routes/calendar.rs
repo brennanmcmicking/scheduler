@@ -1,4 +1,4 @@
-use crate::middlewares::{CookieUserState, Course};
+use crate::{middlewares::CookieUserState, scraper::ThinCourse};
 use axum::{
     extract::{Json, State},
     Extension, Form,
@@ -24,11 +24,13 @@ pub async fn add_to_calendar(
     Form(form): Form<Search>,
 ) -> Markup {
     println!("add_to_calendar");
-    dbg!(&user_state, &form);
+    dbg!(&form.course);
+    dbg!(&user_state);
     let mut new_state = user_state.to_owned();
-    new_state.selection.push(Course {
-        name: form.course,
-        crns: Vec::new(),
+    new_state.selection.push(ThinCourse {
+        subject_code: "".to_string(),
+        course_code: "".to_string(),
+        sections: Vec::new(),
     });
 
     dbg!(&new_state);

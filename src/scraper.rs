@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, fmt::Display, str::FromStr};
 
 use anyhow::{bail, Result};
@@ -145,4 +146,21 @@ pub struct Section {
     pub waitlist_capacity: u32,
 
     pub meeting_times: Vec<MeetingTime>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Course {
+    pub sections: Vec<Section>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThinSection {
+    pub crn: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThinCourse {
+    pub subject_code: String,
+    pub course_code: String,
+    pub sections: Vec<ThinSection>,
 }

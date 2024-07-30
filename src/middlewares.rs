@@ -8,15 +8,11 @@ use axum_extra::extract::CookieJar;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Course {
-    pub name: String,
-    pub crns: Vec<String>,
-}
+use crate::scraper::ThinCourse;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UserState {
-    pub selection: Vec<Course>,
+    pub selection: Vec<ThinCourse>,
 }
 
 pub type CookieUserState = Extension<UserState>;
@@ -32,12 +28,12 @@ pub async fn parse_cookie(
         // comma seperated CRN's. Need to query Malcolm's scraped data
         // for whatever attributes needed for course display.
         dbg!(&raw_state);
-        let blank_selection: Vec<Course> = Vec::new();
+        let blank_selection: Vec<ThinCourse> = Vec::new();
         UserState {
             selection: blank_selection,
         }
     } else {
-        let blank_selection: Vec<Course> = Vec::new();
+        let blank_selection: Vec<ThinCourse> = Vec::new();
         // blank_selection.push(Course {
         //     name: "csc111".to_string(),
         //     crns: Vec::new(),
