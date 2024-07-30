@@ -7,7 +7,7 @@ use jiff::{
     ToSpan, Zoned,
 };
 
-#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Season {
     Spring,
     Summer,
@@ -37,10 +37,10 @@ impl TryFrom<i64> for Season {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Term {
-    season: Season,
     year: i16,
+    season: Season,
 }
 
 impl Term {
@@ -57,15 +57,6 @@ impl Term {
     pub fn during(self, time: &Zoned) -> bool {
         let (start, end) = self.time_range();
         start <= *time && *time < end
-    }
-}
-
-impl PartialOrd for Term {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        match self.year.cmp(&other.year) {
-            Ordering::Equal => self.season.partial_cmp(&other.season),
-            ordering => Some(ordering),
-        }
     }
 }
 
