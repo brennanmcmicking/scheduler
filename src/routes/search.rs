@@ -17,7 +17,7 @@ pub async fn search<S: AppState>(
     Form(query): Form<Search>,
 ) -> Markup {
     println!("{}", query.search);
-    let mut search = String::from(query.search).to_lowercase();
+    let mut search = query.search.to_lowercase();
     search.retain(|c| !c.is_whitespace());
     let result: Vec<String> = state
         .courses()
