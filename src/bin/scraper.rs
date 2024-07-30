@@ -1,118 +1,10 @@
-use anyhow::{bail, Ok, Result};
-use clap::{Parser, ValueEnum};
-use jiff::{
-    civil::{date, Date, Time},
-    ToSpan, Zoned,
-};
+use anyhow::{Ok, Result};
+use clap::Parser;
+use jiff::Zoned;
 use rusqlite::Connection;
-use std::{cmp::Ordering, fmt::Display, path::Path, str::FromStr};
+use std::path::Path;
 
-#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Season {
-    Spring,
-    Summer,
-    Fall,
-}
-
-impl From<Season> for i8 {
-    fn from(value: Season) -> Self {
-        match value {
-            Season::Spring => 1,
-            Season::Summer => 5,
-            Season::Fall => 9,
-        }
-    }
-}
-
-impl TryFrom<i64> for Season {
-    type Error = anyhow::Error;
-
-    fn try_from(month: i64) -> Result<Season> {
-        Ok(match month {
-            1 => Season::Spring,
-            5 => Season::Summer,
-            9 => Season::Fall,
-            _ => bail!("Term month must be 1, 5, or 9, but was {} instead", month),
-        })
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Term {
-    season: Season,
-    year: i16,
-}
-
-impl Term {
-    /// Returns the open-closed [x,y) time range for this term
-    pub fn time_range(self) -> (Zoned, Zoned) {
-        let start = date(self.year, self.season.into(), 1)
-            .intz("America/Vancouver")
-            .unwrap();
-        let end = start.saturating_add(4.months());
-        (start, end)
-    }
-
-    /// Tests whether `time` is during this term
-    pub fn during(self, time: &Zoned) -> bool {
-        let (start, end) = self.time_range();
-        start <= *time && *time < end
-    }
-}
-
-impl PartialOrd for Term {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        match self.year.cmp(&other.year) {
-            Ordering::Equal => self.season.partial_cmp(&other.season),
-            ordering => Some(ordering),
-        }
-    }
-}
-
-impl PartialOrd<Zoned> for Term {
-    fn partial_cmp(&self, other: &Zoned) -> Option<Ordering> {
-        let (start, end) = self.time_range();
-
-        if *other < start {
-            Some(Ordering::Greater)
-        } else if *other >= end {
-            Some(Ordering::Less)
-        } else {
-            Some(Ordering::Equal)
-        }
-    }
-}
-
-impl PartialEq<Zoned> for Term {
-    fn eq(&self, other: &Zoned) -> bool {
-        self.during(other)
-    }
-}
-
-impl Display for Term {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let season_number = match self.season {
-            Season::Spring => 1,
-            Season::Summer => 5,
-            Season::Fall => 9,
-        };
-        write!(f, "{}{:02}", self.year, season_number)
-    }
-}
-
-impl FromStr for Term {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        if s.len() != 6 {
-            bail!("Term string should be 6 characters: 4 for year, 2 for month")
-        }
-        let (year, month) = s.split_at(s.len() - 2);
-        let year = year.parse()?;
-        let season = month.parse::<i64>()?.try_into()?;
-        Ok(Term { year, season })
-    }
-}
+use scheduler::scraper::*;
 
 #[derive(Parser)]
 /// Downloads section info to SQLite databases in the current folder.
@@ -277,55 +169,13 @@ pub fn store_sections(conn: &Connection, sections: &Vec<Section>) -> Result<()> 
     Ok(())
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct Days {
-    monday: bool,
-    tuesday: bool,
-    wednesday: bool,
-    thursday: bool,
-    friday: bool,
-    saturday: bool,
-    sunday: bool,
-}
-
-#[derive(Debug, Clone)]
-pub struct MeetingTime {
-    start_time: Option<Time>,
-    end_time: Option<Time>,
-    start_date: Date,
-    end_date: Date,
-
-    days: Days,
-
-    building: Option<String>,
-    room: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Section {
-    crn: u64,
-    subject_code: String,
-    course_code: String,
-    sequence_code: String,
-
-    title: String,
-    campus: String,
-
-    enrollment: u32,
-    enrollment_capacity: u32,
-    waitlist: u32,
-    waitlist_capacity: u32,
-
-    meeting_times: Vec<MeetingTime>,
-}
-
 mod scrape {
     use anyhow::{anyhow, bail, Context, Ok, Result};
     use jiff::civil::{Date, Time};
     use reqwest::Client;
     use serde::{Deserialize, Serialize};
 
-    use crate::Term;
+    use super::Term;
 
     #[derive(Deserialize, Serialize, Debug)]
     #[serde(rename_all = "camelCase")]
@@ -417,7 +267,7 @@ mod scrape {
                             end_time: m.end_time.map(time_from_string).transpose()?,
                             start_date: Date::strptime("%b %d, %Y", m.start_date)?,
                             end_date: Date::strptime("%b %d, %Y", m.end_date)?,
-                            days: crate::Days {
+                            days: super::Days {
                                 monday: m.monday,
                                 tuesday: m.tuesday,
                                 wednesday: m.wednesday,
@@ -443,7 +293,7 @@ mod scrape {
 
     const URL_PREFIX: &str = "https://banner.uvic.ca/StudentRegistrationSsb/ssb";
 
-    pub async fn fetch_sections(term: Term) -> Result<Vec<crate::Section>> {
+    pub async fn fetch_sections(term: Term) -> Result<Vec<super::Section>> {
         let client = Client::builder().cookie_store(true).build()?;
 
         // setup the good cookies
@@ -486,7 +336,7 @@ mod scrape {
 
         Ok(sections
             .into_iter()
-            .map(crate::Section::try_from)
+            .map(super::Section::try_from)
             .collect::<Result<_>>()?)
     }
 

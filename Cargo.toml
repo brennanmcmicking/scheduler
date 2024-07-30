@@ -6,11 +6,11 @@ default-run = "backend"
 
 [[bin]]
 name = "backend"
-path = "src/main.rs"
+path = "src/bin/backend.rs"
 
 [[bin]]
 name = "scraper"
-path = "src/scraper/main.rs"
+path = "src/bin/scraper.rs"
 
 
 [dependencies]

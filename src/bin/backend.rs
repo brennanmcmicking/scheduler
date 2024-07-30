@@ -1,6 +1,4 @@
-mod components;
-mod middlewares;
-mod routes;
+use scheduler::routes;
 
 #[tokio::main]
 async fn main() {
