@@ -2,6 +2,10 @@ on: [push]
 
 name: CI
 
+# Make sure CI fails on all warnings, including Clippy lints
+env:
+  RUSTFLAGS: "-Dwarnings"
+
 jobs:
   build:
     name: Build scheduler app release
@@ -11,4 +15,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
-      - run: cargo build --release --all-features
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features
+      - name: Build
+        run: cargo build --release --all-features
