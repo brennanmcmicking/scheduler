@@ -1,4 +1,4 @@
-use std::{env::current_dir, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, env::current_dir, ops::DerefMut, path::PathBuf, sync::Arc};
 
 use anyhow::{Ok, Result};
 
@@ -6,6 +6,7 @@ use axum::{
     routing::{delete, get, post, put},
     Router,
 };
+use r2d2_sqlite::SqliteConnectionManager;
 use regex::bytes::Regex;
 use rusqlite::{Connection, OpenFlags};
 use tokio::fs;
@@ -33,18 +34,14 @@ impl AppState for RegularAppState {
 }
 
 pub struct DatabaseAppState {
-    dir: PathBuf,
+    terms: HashMap<Term, r2d2::Pool<SqliteConnectionManager>>,
 }
 
 impl DatabaseAppState {
-    pub fn new(dir: PathBuf) -> Self {
-        Self { dir }
-    }
+    pub async fn new(dir: PathBuf) -> Result<Self> {
+        let mut terms = HashMap::new();
 
-    pub async fn get_terms(&self) -> Result<Vec<Term>> {
-        let mut terms = Vec::new();
-
-        let mut entries = fs::read_dir(&self.dir).await?;
+        let mut entries = fs::read_dir(dir).await?;
 
         let pattern = Regex::new(r"^sections_([0-9]{6})\.sqlite3$")?;
 
@@ -60,17 +57,26 @@ impl DatabaseAppState {
             let term: Term = std::str::from_utf8(term.as_bytes())
                 .expect("term numbers should be ascii")
                 .parse()?;
-            terms.push(term);
+
+            let manager = SqliteConnectionManager::file(file_name)
+                .with_flags(OpenFlags::SQLITE_OPEN_READ_ONLY);
+            let pool = r2d2::Pool::new(manager)?;
+
+            terms.insert(term, pool);
         }
+        Ok(Self { terms })
+    }
+
+    pub fn get_terms(&self) -> Vec<Term> {
+        let mut terms: Vec<_> = self.terms.keys().cloned().collect();
         terms.sort();
         terms.reverse();
 
-        Ok(terms)
+        terms
     }
 
-    pub fn get_conn(&self, term: &Term) -> Option<Connection> {
-        let name = format!("sections_{}.sqlite3", term);
-        Connection::open_with_flags(name, OpenFlags::SQLITE_OPEN_READ_ONLY).ok()
+    pub fn get_conn(&self, term: &Term) -> Option<impl DerefMut<Target = Connection>> {
+        self.terms.get(term).and_then(|p| p.get().ok())
     }
 }
 
@@ -96,12 +102,14 @@ impl AppState for Arc<DatabaseAppState> {
     }
 }
 
-pub fn make_app(_courses: Vec<String>) -> Router {
+pub async fn make_app(_courses: Vec<String>) -> Router {
     type State = Arc<DatabaseAppState>;
 
-    let state: State = Arc::new(DatabaseAppState::new(
-        current_dir().expect("couldn't access current directory"),
-    ));
+    let state: State = Arc::new(
+        DatabaseAppState::new(current_dir().expect("couldn't access current directory"))
+            .await
+            .expect("failed to initialize database state"),
+    );
 
     let calendar_route = Router::new()
         .route("/", put(calendar::add_to_calendar::<State>))

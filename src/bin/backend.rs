@@ -24,7 +24,7 @@ async fn main() {
     courses.push("phys120".to_string());
 
     // build our application with a route
-    let app = routes::make_app(courses);
+    let app = routes::make_app(courses).await;
 
     // run our app with hyper, listening globally on port
     let soc: std::net::SocketAddr = "0.0.0.0:8080"
