@@ -13,28 +13,11 @@ pub struct Search {
 }
 
 pub async fn search(
-    State(state): State<Arc<DatabaseAppState>>,
-    Extension(user_state): CookieUserState,
+    State(_): State<Arc<DatabaseAppState>>,
+    Extension(_): CookieUserState,
     Form(query): Form<Search>,
 ) -> Markup {
-    println!("{}", query.search);
-    let mut search = query.search.to_lowercase();
-    search.retain(|c| !c.is_whitespace());
-    // let result: Vec<String> = state
-    //     .courses()
-    //     .iter()
-    //     .filter(|x| {
-    //         x.contains(&search)
-    //             && user_state
-    //                 .selection
-    //                 .clone()
-    //                 .iter()
-    //                 .filter(|course| course.name == **x)
-    //                 .count()
-    //                 == 0
-    //     })
-    //     .map(|course| course.to_owned())
-    //     .collect();
+    dbg!(&query.search);
     let result: Vec<String> = Vec::new();
 
     html! {

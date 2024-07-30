@@ -16,7 +16,7 @@ pub fn c() -> Markup {
             @for day in &days {
                 div class="grow flex flex-col" {
                     div class="text-[0.5rem] border-b-2 box-content grow flex justify-center items-center" { (day) }
-                    @for time in &timeslots {
+                    @for _ in &timeslots {
                         div class="text-[0.25rem] border-b-2 box-content grow" { "." }
                     }
                 }
