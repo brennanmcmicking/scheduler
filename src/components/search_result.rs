@@ -1,6 +1,6 @@
 use maud::{html, Markup};
 
-pub fn c(courses: &Vec<String>) -> Markup {
+pub fn render(courses: &Vec<String>) -> Markup {
     html! {
         div {
             @for course in courses {

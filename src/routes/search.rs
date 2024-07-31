@@ -21,6 +21,6 @@ pub async fn search(
     let result: Vec<String> = Vec::new();
 
     html! {
-        (components::search_result::c(&result))
+        (components::search_result::render(&result))
     }
 }
