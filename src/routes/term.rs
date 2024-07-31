@@ -21,6 +21,6 @@ pub async fn term(
     let courses = state.courses(term);
 
     components::base(html! {
-        (components::container::c(&courses))
+        (components::container::render(&courses))
     })
 }
