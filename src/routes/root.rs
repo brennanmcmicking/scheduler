@@ -12,7 +12,6 @@ pub async fn root(
     Extension(user_state): CookieUserState,
 ) -> Markup {
     dbg!(&user_state);
-    // dbg!(&state);
 
     components::base(html! {
         div class="flex flex-col gap-2 p-2 h-full justify-items-center" {
