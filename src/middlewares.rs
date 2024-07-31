@@ -34,10 +34,6 @@ pub async fn parse_cookie(
         }
     } else {
         let blank_selection: Vec<ThinCourse> = Vec::new();
-        // blank_selection.push(Course {
-        //     name: "csc111".to_string(),
-        //     crns: Vec::new(),
-        // });
         UserState {
             selection: blank_selection,
         }
