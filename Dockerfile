@@ -4,18 +4,13 @@ RUN USER=root cargo new --bin scheduler
 WORKDIR /scheduler
 
 COPY ./Cargo.toml ./Cargo.toml
-
-RUN cargo build --release
-RUN rm src/*.rs
-
 COPY ./src ./src
 
-RUN rm ./target/release/deps/scheduler*
 RUN cargo build --release
 
 FROM debian:stable-slim
 
-COPY --from=build /scheduler/target/release/scheduler .
+COPY --from=build /scheduler/target/release/backend .
 COPY ./assets ./assets
 
-CMD ["./scheduler"]
+CMD ["./backend"]
