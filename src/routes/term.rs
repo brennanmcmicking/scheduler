@@ -17,20 +17,6 @@ pub async fn term(
 
     let term: Term = id.parse().unwrap();
 
-    // let courses: Vec<String> = state
-    //     .courses()
-    //     .iter()
-    //     .filter(|x| {
-    //         user_state
-    //             .selection
-    //             .clone()
-    //             .iter()
-    //             .filter(|course| course.name == **x)
-    //             .count()
-    //             == 0
-    //     })
-    //     .map(|course| course.to_owned())
-    //     .collect();
 
     let courses = state.courses(term);
 
