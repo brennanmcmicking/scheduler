@@ -15,7 +15,7 @@ pub async fn root(
 ) -> Markup {
     debug!("root");
     components::base(html! {
-        div class="flex flex-col gap-2 p-2 h-full justify-items-center" {
+        div class="flex flex-col gap-2 py-2 px-64 h-full justify-items-center" {
             div class="h-full w-full text-white grow rounded-lg bg-neutral-800 flex justify-center items-center" {
                 "select a term"
             }
