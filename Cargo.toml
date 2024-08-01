@@ -26,7 +26,7 @@ serde_json = "1.0.68"
 reqwest = { version = "0.12.5", features = ["cookies", "json"] }
 rusqlite = { version = "0.32.0", features = ["bundled", "backup"] }
 tokio = { version = "1.0", features = ["full"] }
-tower-http = { version = "0.5.2", features = ["fs"] }
+tower-http = { version = "0.5.2", features = ["fs", "trace"] }
 tower = { version = "0.4.13", features = ["default"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

@@ -3,6 +3,7 @@ use std::{collections::HashMap, env::current_dir, ops::DerefMut, path::PathBuf, 
 use anyhow::{Ok, Result};
 
 use axum::{
+    http::Request,
     routing::{delete, get, post, put},
     Router,
 };
@@ -10,7 +11,12 @@ use r2d2_sqlite::SqliteConnectionManager;
 use regex::bytes::Regex;
 use rusqlite::{Connection, OpenFlags};
 use tokio::fs;
-use tower_http::services::ServeDir;
+use tower_http::{
+    services::ServeDir,
+    trace::{DefaultOnResponse, TraceLayer},
+    LatencyUnit,
+};
+use tracing::debug_span;
 
 use crate::{middlewares, scraper::Term};
 
@@ -108,5 +114,16 @@ pub async fn make_app() -> Router {
         .route_layer(
             tower::ServiceBuilder::new()
                 .layer(axum::middleware::from_fn(middlewares::parse_cookie)),
+        )
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(|request: &Request<_>| {
+                    debug_span!(
+                        "request",
+                        method = %request.method(),
+                        uri = %request.uri(),
+                    )
+                })
+                .on_response(DefaultOnResponse::new().latency_unit(LatencyUnit::Micros)),
         )
 }
