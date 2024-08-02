@@ -3,6 +3,8 @@ use clap::Parser;
 use jiff::Zoned;
 use rusqlite::Connection;
 use std::path::Path;
+use tracing::info;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use scheduler::scraper::*;
 
@@ -29,12 +31,20 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "scraper=info".into()),
+        )
+        .with(tracing_subscriber::fmt::layer())
+        .init();
+
     let args = Args::parse();
 
     let terms = if let Some(term) = args.term {
         vec![term]
     } else {
-        println!("fetching list of all terms");
+        info!("fetching list of all terms");
         let mut terms = scrape::fetch_terms().await?;
         if let Some(oldest) = args.oldest {
             terms.retain(|t| t >= &oldest)
@@ -49,10 +59,10 @@ async fn main() -> Result<()> {
         let filename = format!("sections_{}.sqlite3", term);
 
         if !args.force && term < now && Path::new(&filename).exists() {
-            println!("db already downloaded for {}", term);
+            info!("db already downloaded for {}", term);
             continue;
         }
-        println!("fetching sections for term {}", term);
+        info!("fetching sections for term {}", term);
 
         let sections = scrape::fetch_sections(term).await?;
         persist(filename, &sections)?;
@@ -174,6 +184,7 @@ mod scrape {
     use jiff::civil::{Date, Time};
     use reqwest::Client;
     use serde::{Deserialize, Serialize};
+    use tracing::{debug, instrument};
 
     use super::Term;
 
@@ -293,9 +304,11 @@ mod scrape {
 
     const URL_PREFIX: &str = "https://banner.uvic.ca/StudentRegistrationSsb/ssb";
 
+    #[instrument()]
     pub async fn fetch_sections(term: Term) -> Result<Vec<super::Section>> {
         let client = Client::builder().cookie_store(true).build()?;
 
+        debug!("fetching auth cookie");
         // setup the good cookies
         client
             .get(format!(
@@ -305,6 +318,7 @@ mod scrape {
             .send()
             .await?;
 
+        debug!("fetching first sections");
         let res = fetch_sections_partial(client.clone(), term, 0).await?;
 
         let mut sections = res.data;
@@ -340,11 +354,13 @@ mod scrape {
             .collect::<Result<_>>()?)
     }
 
+    #[instrument(skip(client, term))]
     async fn fetch_sections_partial(
         client: Client,
         term: Term,
         offset: u32,
     ) -> Result<SectionResults> {
+        debug!("fetching offset {}", offset);
         let text = client
             .get(format!(
                 "{}/searchResults/searchResults?txt_term={}&pageOffset={}&pageMaxSize=10000",
@@ -366,6 +382,7 @@ mod scrape {
         }
     }
 
+    #[instrument()]
     pub async fn fetch_terms() -> Result<Vec<Term>> {
         #[derive(Deserialize)]
         struct TermResult {
