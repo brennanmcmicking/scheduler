@@ -1,9 +1,10 @@
+use anyhow::{anyhow, Context};
 use scheduler::routes;
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
-async fn main() {
+async fn main() -> anyhow::Result<()> {
     // initialize tracing
     tracing_subscriber::registry()
         .with(
@@ -26,9 +27,15 @@ async fn main() {
     // run our app with hyper, listening globally on port
     let soc: std::net::SocketAddr = "0.0.0.0:8080"
         .parse()
-        .expect("invalid binding socket address");
-    let listener = tokio::net::TcpListener::bind(&soc).await.unwrap();
+        .context("invalid binding socket address")?;
+    let listener = tokio::net::TcpListener::bind(&soc)
+        .await
+        .with_context(|| anyhow!("failed to bind listener to {}", soc))?;
     info!("listening on http://{}", &soc);
 
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(listener, app)
+        .await
+        .context("error while serving app")?;
+
+    Ok(())
 }

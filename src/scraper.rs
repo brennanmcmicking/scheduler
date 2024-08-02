@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, fmt::Display, str::FromStr};
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use clap::ValueEnum;
 use jiff::{
     civil::{date, Date, Time},
@@ -33,7 +33,7 @@ impl TryFrom<i64> for Season {
             1 => Season::Spring,
             5 => Season::Summer,
             9 => Season::Fall,
-            _ => bail!("Term month must be 1, 5, or 9, but was {} instead", month),
+            _ => bail!("term month must be 1, 5, or 9, but was {} instead", month),
         })
     }
 }
@@ -49,7 +49,7 @@ impl Term {
     pub fn time_range(self) -> (Zoned, Zoned) {
         let start = date(self.year, self.season.into(), 1)
             .intz("America/Vancouver")
-            .unwrap();
+            .expect("bad hardcoded UVic timezone");
         let end = start.saturating_add(4.months());
         (start, end)
     }
@@ -97,11 +97,14 @@ impl FromStr for Term {
 
     fn from_str(s: &str) -> Result<Self> {
         if s.len() != 6 {
-            bail!("Term string should be 6 characters: 4 for year, 2 for month")
+            bail!("term string should be 6 characters: 4 for year, 2 for month")
         }
         let (year, month) = s.split_at(s.len() - 2);
-        let year = year.parse()?;
-        let season = month.parse::<i64>()?.try_into()?;
+        let year = year.parse().context("failed to parse term year")?;
+        let season = month
+            .parse::<i64>()?
+            .try_into()
+            .map_err(|e| anyhow!("failed to parse term season: {e}"))?;
         Ok(Term { year, season })
     }
 }

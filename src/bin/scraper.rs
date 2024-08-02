@@ -323,16 +323,13 @@ mod scrape {
 
         let mut sections = res.data;
 
-        let sections_left = res.total_count - u32::try_from(sections.len()).unwrap();
+        let sections_num = u32::try_from(sections.len())?;
+        let sections_left = res.total_count - sections_num;
         // ceil division
         let requests_left = (sections_left + res.page_max_size - 1) / res.page_max_size;
 
         let handles = (0..requests_left).map(|i| {
-            fetch_sections_partial(
-                client.clone(),
-                term,
-                u32::try_from(sections.len()).unwrap() + i * res.page_max_size,
-            )
+            fetch_sections_partial(client.clone(), term, sections_num + i * res.page_max_size)
         });
 
         for res in futures::future::join_all(handles).await {
@@ -340,7 +337,7 @@ mod scrape {
             sections.extend(res.data);
         }
 
-        if res.total_count != u32::try_from(sections.len()).unwrap() {
+        if res.total_count != sections_num {
             bail!(
                 "expected to fetch {} sections, but actually got {}",
                 res.total_count,
