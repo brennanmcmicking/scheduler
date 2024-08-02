@@ -1,9 +1,10 @@
 use std::{collections::HashMap, env::current_dir, ops::DerefMut, path::PathBuf, sync::Arc};
 
-use anyhow::{Ok, Result};
+use anyhow::{Context, Ok, Result};
 
 use axum::{
-    http::Request,
+    http::{Request, StatusCode},
+    response::{IntoResponse, Response},
     routing::{delete, get, post, put},
     Router,
 };
@@ -16,7 +17,7 @@ use tower_http::{
     trace::{DefaultOnResponse, TraceLayer},
     LatencyUnit,
 };
-use tracing::debug_span;
+use tracing::{debug_span, error};
 
 use crate::{middlewares, scraper::Term};
 
@@ -67,26 +68,61 @@ impl DatabaseAppState {
         terms
     }
 
-    fn courses(&self, term: Term) -> Vec<String> {
+    fn courses(&self, term: Term) -> Result<Vec<String>> {
         let Some(conn) = self.get_conn(&term) else {
-            return Vec::new();
+            return Ok(Vec::new());
         };
-        let mut stmt = conn
-            .prepare("SELECT subject_code, course_code FROM section")
-            .unwrap();
 
-        let mut courses = Vec::new();
-        let mut rows = stmt.query(()).unwrap();
-        while let Some(row) = rows.next().unwrap() {
-            let subject: String = row.get_unwrap("subject_code");
-            let course: String = row.get_unwrap("course_code");
-            courses.push(format!("{subject} {course}"));
-        }
-        courses
+        let courses = conn
+            .prepare("SELECT subject_code, course_code FROM section")
+            .context("failed to prepare courses SQL statement")?
+            .query_and_then((), |row| {
+                let subject: String = row.get("subject_code")?;
+                let course: String = row.get("course_code")?;
+                Ok(format!("{subject} {course}"))
+            })
+            .context("failed to execute query")?
+            .collect::<Result<Vec<_>>>() // quit on the first error
+            .context("failed to get query rows")?;
+
+        Ok(courses)
     }
 
     pub fn get_conn(&self, term: &Term) -> Option<impl DerefMut<Target = Connection>> {
         self.terms.get(term).and_then(|p| p.get().ok())
+    }
+}
+
+enum AppError {
+    Anyhow(anyhow::Error),
+    Code(StatusCode),
+}
+
+// Tell axum how to convert `AppError` into a response.
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        match self {
+            AppError::Anyhow(error) => {
+                let backtrace = error.backtrace();
+                error!(%error, %backtrace);
+                AppError::Code(StatusCode::INTERNAL_SERVER_ERROR).into_response()
+            }
+            AppError::Code(c) => (c, c.to_string()).into_response(),
+        }
+    }
+}
+
+impl From<StatusCode> for AppError {
+    fn from(err: StatusCode) -> Self {
+        Self::Code(err)
+    }
+}
+
+// This enables using `?` on functions that return `Result<_, anyhow::Error>` to turn them into
+// `Result<_, AppError>`. That way you don't need to do that manually.
+impl From<anyhow::Error> for AppError {
+    fn from(err: anyhow::Error) -> Self {
+        Self::Anyhow(err)
     }
 }
 
