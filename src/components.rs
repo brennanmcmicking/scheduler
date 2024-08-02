@@ -15,7 +15,7 @@ pub fn base(content: Markup) -> Markup {
                 meta name="viewport" content="width=device-width,initial-scale=1.0" {}
             }
             body class="bg-slate-100 dark:bg-neutral-900" {
-                div id="app-container" class="contents" {
+                div id="app-container" class="mx-auto w-full max-w-screen-2xl" {
                     (content)
                 }
             }
