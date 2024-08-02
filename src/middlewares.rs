@@ -7,6 +7,7 @@ use axum::{
 use axum_extra::extract::CookieJar;
 
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 
 use crate::scraper::ThinCourse;
 
@@ -27,7 +28,7 @@ pub async fn parse_cookie(
         // TODO: currently (of my expectation) the cookie contains the
         // comma seperated CRN's. Need to query Malcolm's scraped data
         // for whatever attributes needed for course display.
-        dbg!(&raw_state);
+        debug!(?raw_state);
         let blank_selection: Vec<ThinCourse> = Vec::new();
         UserState {
             selection: blank_selection,
@@ -39,7 +40,7 @@ pub async fn parse_cookie(
         }
     };
 
-    dbg!(&serde_json::to_string(&user_state).unwrap());
+    debug!(?user_state);
 
     req.extensions_mut().insert(user_state);
     Ok(next.run(req).await)
