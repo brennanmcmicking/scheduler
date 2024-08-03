@@ -126,15 +126,6 @@ impl From<anyhow::Error> for AppError {
     }
 }
 
-impl Into<StatusCode> for AppError {
-    fn into(self) -> StatusCode {
-        match self {
-            AppError::Code(code) => code,
-            AppError::Anyhow(_) => StatusCode::INTERNAL_SERVER_ERROR,
-        }
-    }
-}
-
 pub async fn make_app() -> Router {
     type State = Arc<DatabaseAppState>;
 
