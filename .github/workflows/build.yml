@@ -19,3 +19,12 @@ jobs:
         run: cargo clippy --all-targets --all-features
       - name: Build
         run: cargo build --release --all-features
+  docker-build:
+    name: Build scheduler app docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          push: false
+          tags: scheduler:ci
