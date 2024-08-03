@@ -114,7 +114,7 @@ impl DatabaseAppState {
     }
 }
 
-enum AppError {
+pub enum AppError {
     Anyhow(anyhow::Error),
     Code(StatusCode),
 }
@@ -144,6 +144,15 @@ impl From<StatusCode> for AppError {
 impl From<anyhow::Error> for AppError {
     fn from(err: anyhow::Error) -> Self {
         Self::Anyhow(err)
+    }
+}
+
+impl Into<StatusCode> for AppError {
+    fn into(self) -> StatusCode {
+        match self {
+            AppError::Code(code) => code,
+            AppError::Anyhow(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        }
     }
 }
 
