@@ -56,7 +56,7 @@ impl<'a> TryFrom<Cookie<'a>> for UserState {
     fn try_from(cookie: Cookie<'a>) -> Result<Self, Self::Error> {
         let cookie_base64 = cookie.value();
 
-        let cookie_json = STANDARD_NO_PAD.decode(&cookie_base64).map_err(|err| {
+        let cookie_json = STANDARD_NO_PAD.decode(cookie_base64).map_err(|err| {
             error!("invalid base64 encoded cookie: {}", err);
             StatusCode::BAD_REQUEST
         })?;
@@ -66,7 +66,7 @@ impl<'a> TryFrom<Cookie<'a>> for UserState {
             StatusCode::BAD_REQUEST
         })?;
 
-        let userstate: UserState = serde_json::from_str(&cookie_json).map_err(|err| {
+        let userstate: UserState = serde_json::from_str(cookie_json).map_err(|err| {
             error!("invalid json encoded cookie: {}", err);
             StatusCode::BAD_REQUEST
         })?;
@@ -81,12 +81,8 @@ pub async fn parse_cookie(
     next: Next,
 ) -> Result<Response, (StatusCode, String)> {
     let user_state = match cookie.get("state") {
-        Some(raw_state) => {
-            let userstate = UserState::try_from(raw_state.to_owned())
-                .map_err(|err| (err.into(), String::from("malformed cookie")))?;
-
-            userstate
-        }
+        Some(raw_state) => UserState::try_from(raw_state.to_owned())
+            .map_err(|_| (StatusCode::BAD_REQUEST, String::from("malformed cookie")))?,
         None => Default::default(),
     };
 

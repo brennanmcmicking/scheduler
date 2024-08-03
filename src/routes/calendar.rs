@@ -40,10 +40,7 @@ pub async fn add_to_calendar<'a, 'b>(
     })?;
 
     // get a db conn
-    let conn = state.get_conn(&term).ok_or_else(|| {
-        // data for term not found
-        StatusCode::NOT_FOUND
-    })?;
+    let conn = state.get_conn(&term).ok_or(StatusCode::NOT_FOUND)?;
 
     // query db
     let (subject_code, course_code) = conn
@@ -61,14 +58,14 @@ pub async fn add_to_calendar<'a, 'b>(
         })?;
 
     // building response
-    let header: AppendHeaders<[(HeaderName, String); 1]>;
-
-    if let Some(_) = user_state.selection.iter().find(|&thincourse| {
+    let found = user_state.selection.iter().any(|thincourse| {
         thincourse.subject_code == subject_code && thincourse.course_code == course_code
-    }) {
+    });
+
+    let header: AppendHeaders<[(HeaderName, String); 1]> = if found {
         // early return if course is already in the cookie state
         let cookie: Cookie = user_state.try_into()?;
-        header = AppendHeaders([(SET_COOKIE, cookie.to_string())]);
+        AppendHeaders([(SET_COOKIE, cookie.to_string())])
     } else {
         // new course, new cookie
         let mut user_state = user_state.to_owned();
@@ -79,8 +76,8 @@ pub async fn add_to_calendar<'a, 'b>(
         });
 
         let cookie: Cookie = user_state.try_into()?;
-        header = AppendHeaders([(SET_COOKIE, cookie.to_string())]);
-    }
+        AppendHeaders([(SET_COOKIE, cookie.to_string())])
+    };
 
     Ok((
         header,
