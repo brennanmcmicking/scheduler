@@ -80,25 +80,17 @@ pub async fn parse_cookie(
     mut req: Request,
     next: Next,
 ) -> Result<Response, (StatusCode, String)> {
-    let user_state = if let Some(raw_state) = cookie.get("state") {
-        // parse the cookie here
-        // TODO: currently (of my expectation) the cookie contains the
-        // comma seperated CRN's. Need to query Malcolm's scraped data
-        // for whatever attributes needed for course display.
-        debug!(?raw_state);
-        let blank_selection: Vec<ThinCourse> = Vec::new();
-        UserState {
-            selection: blank_selection,
+    let user_state = match cookie.get("state") {
+        Some(raw_state) => {
+            let userstate = UserState::try_from(raw_state.to_owned())
+                .map_err(|err| (err.into(), String::from("malformed cookie")))?;
+
+            userstate
         }
-    } else {
-        let blank_selection: Vec<ThinCourse> = Vec::new();
-        UserState {
-            selection: blank_selection,
-        }
+        None => Default::default(),
     };
 
-    debug!(?user_state);
-
     req.extensions_mut().insert(user_state);
+
     Ok(next.run(req).await)
 }
