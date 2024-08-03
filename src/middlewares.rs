@@ -18,6 +18,14 @@ pub struct UserState {
 
 pub type CookieUserState = Extension<UserState>;
 
+
+impl Default for UserState {
+    fn default() -> Self {
+        let selection = Vec::new();
+        UserState { selection }
+    }
+}
+
 pub async fn parse_cookie(
     cookie: CookieJar,
     mut req: Request,
