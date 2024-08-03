@@ -337,7 +337,7 @@ mod scrape {
             sections.extend(res.data);
         }
 
-        if res.total_count != sections_num {
+        if res.total_count != u32::try_from(sections.len())? {
             bail!(
                 "expected to fetch {} sections, but actually got {}",
                 res.total_count,
