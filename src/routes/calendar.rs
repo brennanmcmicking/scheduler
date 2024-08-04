@@ -53,7 +53,7 @@ pub async fn add_to_calendar<'a, 'b>(
         })
         .context("query failed")
         .map_err(|err| {
-            dbg!(err);
+            debug!(?err);
             StatusCode::NOT_FOUND
         })?;
 
