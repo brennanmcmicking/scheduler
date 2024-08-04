@@ -21,25 +21,19 @@ pub struct UserState {
 
 pub type CookieUserState = Extension<UserState>;
 
-impl<'a> TryInto<Cookie<'a>> for UserState {
-    type Error = AppError;
+impl<'a> From<UserState> for Cookie<'a> {
+    fn from(userstate: UserState) -> Self {
+        let userstate_json =
+            serde_json::to_string(&userstate).expect("failed to serialize to json");
 
-    fn try_into(self) -> Result<Cookie<'a>, Self::Error> {
-        let new_state_json = serde_json::to_string(&self).map_err(|err| {
-            dbg!(err);
-            StatusCode::BAD_REQUEST
-        })?;
+        let userstate_base64 = STANDARD_NO_PAD.encode(userstate_json);
 
-        let new_state_base64 = STANDARD_NO_PAD.encode(new_state_json);
-
-        let cookie = Cookie::build(("state", new_state_base64))
+        Cookie::build(("state", userstate_base64))
             .http_only(true)
             .secure(true)
             // .max_age(Duration::MAX) // do we want exp date?
             // .domain(value) // TODO: set domain?
-            .build();
-
-        Ok(cookie)
+            .build()
     }
 }
 

@@ -51,7 +51,7 @@ pub async fn add_to_calendar<'a, 'b>(
             let course: String = row.get(1)?;
             Ok((sub, course))
         })
-        .context("query failed")
+        .context("query failed, course not found")
         .map_err(|err| {
             debug!(?err);
             StatusCode::NOT_FOUND
@@ -64,7 +64,7 @@ pub async fn add_to_calendar<'a, 'b>(
 
     let header: AppendHeaders<[(HeaderName, String); 1]> = if found {
         // early return if course is already in the cookie state
-        let cookie: Cookie = user_state.try_into()?;
+        let cookie: Cookie = user_state.into();
         AppendHeaders([(SET_COOKIE, cookie.to_string())])
     } else {
         // new course, new cookie
@@ -75,7 +75,7 @@ pub async fn add_to_calendar<'a, 'b>(
             sections: Vec::new(),
         });
 
-        let cookie: Cookie = user_state.try_into()?;
+        let cookie: Cookie = user_state.into();
         AppendHeaders([(SET_COOKIE, cookie.to_string())])
     };
 
