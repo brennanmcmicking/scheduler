@@ -1,29 +1,33 @@
-use axum::{extract::State, Extension, Form};
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    Form,
+};
 use maud::{html, Markup};
 use serde::Deserialize;
 use std::sync::Arc;
 use tracing::{debug, instrument};
 
-use crate::{components, middlewares::CookieUserState};
+use crate::{components, scraper::Term};
 
-use super::DatabaseAppState;
+use super::{AppError, DatabaseAppState};
 
 #[derive(Deserialize, Debug)]
 pub struct Search {
-    #[allow(dead_code)]
-    search: String, // FIXME: after we actually implement add_to_calendar
+    search: String,
 }
 
-#[instrument(level = "debug")]
+#[instrument(level = "debug", skip(state))]
 pub async fn search(
-    State(_): State<Arc<DatabaseAppState>>,
-    Extension(_): CookieUserState,
+    Path(id): Path<String>, // TODO: implement Deserialize on Term
+    State(state): State<Arc<DatabaseAppState>>,
     Form(query): Form<Search>,
-) -> Markup {
-    debug!("search");
-    let result: Vec<String> = Vec::new();
+) -> Result<Markup, AppError> {
+    let term = id.parse::<Term>().map_err(|_| StatusCode::BAD_REQUEST)?;
+    let courses = state.search(term, &query.search)?;
+    debug!(?courses);
 
-    html! {
-        (components::search_result::render(&result))
-    }
+    Ok(html! {
+        (components::search_result::render(&courses))
+    })
 }
