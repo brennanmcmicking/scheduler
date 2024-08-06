@@ -74,7 +74,7 @@ impl DatabaseAppState {
         };
 
         let courses = conn
-            .prepare("SELECT subject_code, course_code FROM section")
+            .prepare("SELECT subject_code, course_code FROM course")
             .context("failed to prepare courses SQL statement")?
             .query_and_then((), |row| {
                 let subject: String = row.get("subject_code")?;
