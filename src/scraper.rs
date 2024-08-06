@@ -136,12 +136,10 @@ pub struct MeetingTime {
 #[derive(Debug, Clone)]
 pub struct Section {
     pub crn: u64,
+
     pub subject_code: String,
     pub course_code: String,
     pub sequence_code: String,
-
-    pub title: String,
-    pub campus: String,
 
     pub enrollment: u32,
     pub enrollment_capacity: u32,
@@ -153,6 +151,12 @@ pub struct Section {
 
 #[derive(Debug, Clone)]
 pub struct Course {
+    pub subject_code: String,
+    pub course_code: String,
+
+    pub title: String,
+    pub campus: String,
+
     pub sections: Vec<Section>,
 }
 

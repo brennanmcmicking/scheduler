@@ -64,17 +64,17 @@ async fn main() -> Result<()> {
         }
         info!("fetching sections for term {}", term);
 
-        let sections = scrape::fetch_sections(term).await?;
-        persist(filename, &sections)?;
+        let courses = scrape::fetch_sections(term).await?;
+        persist(filename, &courses)?;
     }
 
     Ok(())
 }
 
-fn persist<P: AsRef<Path>>(filename: P, sections: &Vec<Section>) -> Result<()> {
+fn persist<P: AsRef<Path>>(filename: P, courses: &Vec<Course>) -> Result<()> {
     let conn = Connection::open_in_memory()?;
 
-    store_sections(&conn, sections)?;
+    store_sections(&conn, courses)?;
 
     conn.backup(rusqlite::DatabaseName::Main, filename, None)?;
 
@@ -83,9 +83,19 @@ fn persist<P: AsRef<Path>>(filename: P, sections: &Vec<Section>) -> Result<()> {
 
 /// Store sessions to database `conn`, creating tables and writing rows. Writing to a non-empty
 /// database will likely produce an error.
-pub fn store_sections(conn: &Connection, sections: &Vec<Section>) -> Result<()> {
+pub fn store_sections(conn: &Connection, courses: &Vec<Course>) -> Result<()> {
     conn.execute_batch(
         "PRAGMA foreign_keys = ON;
+
+        CREATE TABLE course (
+            subject_code TEXT NOT NULL,
+            course_code TEXT NOT NULL,
+
+            title TEXT NOT NULL,
+            campus TEXT NOT NULL,
+
+            PRIMARY KEY (subject_code, course_code)
+        ) STRICT;
 
         CREATE TABLE section (
             crn INTEGER NOT NULL PRIMARY KEY ,
@@ -94,16 +104,13 @@ pub fn store_sections(conn: &Connection, sections: &Vec<Section>) -> Result<()> 
             course_code TEXT NOT NULL,
             sequence_code TEXT NOT NULL,
 
-            title TEXT NOT NULL,
-            campus TEXT NOT NULL,
-
             enrollment INTEGER NOT NULL,
             enrollment_capacity INTEGER NOT NULL,
             waitlist INTEGER NOT NULL,
-            waitlist_capacity INTEGER NOT NULL
+            waitlist_capacity INTEGER NOT NULL,
+
+            FOREIGN KEY (subject_code, course_code) REFERENCES course(subject_code, course_code)
         ) STRICT;
-        CREATE INDEX section_subject ON section(subject_code);
-        CREATE INDEX section_subject_course ON section(subject_code, course_code);
 
         CREATE TABLE meeting_time (
             crn INTEGER NOT NULL,
@@ -130,49 +137,61 @@ pub fn store_sections(conn: &Connection, sections: &Vec<Section>) -> Result<()> 
         ",
     )?;
 
-    for section in sections {
+    for course in courses {
         conn.execute(
-            "INSERT INTO section (
-                crn, subject_code, course_code, sequence_code, title, campus,
-                enrollment, enrollment_capacity, waitlist, waitlist_capacity
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10);",
+            "INSERT INTO course (
+                subject_code, course_code, title, campus
+            ) VALUES (?1, ?2, ?3, ?4)",
             (
-                section.crn,
-                &section.subject_code,
-                &section.course_code,
-                &section.sequence_code,
-                &section.title,
-                &section.campus,
-                section.enrollment,
-                section.enrollment_capacity,
-                section.waitlist,
-                section.waitlist_capacity,
+                &course.subject_code,
+                &course.course_code,
+                &course.title,
+                &course.campus,
             ),
         )?;
-        for meeting_time in &section.meeting_times {
+
+        for section in &course.sections {
             conn.execute(
-                "INSERT INTO meeting_time (
-                    crn, start_time, end_time, start_date, end_date, monday,
-                    tuesday, wednesday, thursday, friday, saturday, sunday,
-                    building, room
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14);",
+                "INSERT INTO section (
+                    crn, subject_code, course_code, sequence_code, 
+                    enrollment, enrollment_capacity, waitlist, waitlist_capacity
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8);",
                 (
                     section.crn,
-                    meeting_time.start_time.map(|t| t.to_string()),
-                    meeting_time.end_time.map(|t| t.to_string()),
-                    meeting_time.start_date.to_string(),
-                    meeting_time.end_date.to_string(),
-                    meeting_time.days.monday,
-                    meeting_time.days.tuesday,
-                    meeting_time.days.wednesday,
-                    meeting_time.days.thursday,
-                    meeting_time.days.friday,
-                    meeting_time.days.saturday,
-                    meeting_time.days.sunday,
-                    &meeting_time.building,
-                    &meeting_time.room,
+                    &course.subject_code,
+                    &course.course_code,
+                    &section.sequence_code,
+                    section.enrollment,
+                    section.enrollment_capacity,
+                    section.waitlist,
+                    section.waitlist_capacity,
                 ),
             )?;
+            for meeting_time in &section.meeting_times {
+                conn.execute(
+                    "INSERT INTO meeting_time (
+                        crn, start_time, end_time, start_date, end_date, monday,
+                        tuesday, wednesday, thursday, friday, saturday, sunday,
+                        building, room
+                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14);",
+                    (
+                        section.crn,
+                        meeting_time.start_time.map(|t| t.to_string()),
+                        meeting_time.end_time.map(|t| t.to_string()),
+                        meeting_time.start_date.to_string(),
+                        meeting_time.end_date.to_string(),
+                        meeting_time.days.monday,
+                        meeting_time.days.tuesday,
+                        meeting_time.days.wednesday,
+                        meeting_time.days.thursday,
+                        meeting_time.days.friday,
+                        meeting_time.days.saturday,
+                        meeting_time.days.sunday,
+                        &meeting_time.building,
+                        &meeting_time.room,
+                    ),
+                )?;
+            }
         }
     }
 
@@ -180,6 +199,8 @@ pub fn store_sections(conn: &Connection, sections: &Vec<Section>) -> Result<()> 
 }
 
 mod scrape {
+    use std::collections::HashMap;
+
     use anyhow::{anyhow, bail, Context, Ok, Result};
     use jiff::civil::{Date, Time};
     use reqwest::Client;
@@ -252,8 +273,6 @@ mod scrape {
                 subject_code: s.subject,
                 course_code: s.course_number,
                 sequence_code: s.sequence_number,
-                title: s.course_title,
-                campus: s.campus_description,
                 enrollment: s.enrollment,
                 enrollment_capacity: s.maximum_enrollment,
                 waitlist: s.wait_count,
@@ -305,7 +324,7 @@ mod scrape {
     const URL_PREFIX: &str = "https://banner.uvic.ca/StudentRegistrationSsb/ssb";
 
     #[instrument()]
-    pub async fn fetch_sections(term: Term) -> Result<Vec<super::Section>> {
+    pub async fn fetch_sections(term: Term) -> Result<Vec<super::Course>> {
         let client = Client::builder().cookie_store(true).build()?;
 
         debug!("fetching auth cookie");
@@ -345,10 +364,29 @@ mod scrape {
             );
         }
 
-        Ok(sections
-            .into_iter()
-            .map(super::Section::try_from)
-            .collect::<Result<_>>()?)
+        let mut courses: HashMap<(String, String), super::Course> = HashMap::new();
+
+        for section in sections {
+            let subject_code = section.subject.clone();
+            let course_code = section.course_number.clone();
+
+            let course = courses
+                .entry((subject_code.clone(), course_code.clone()))
+                .or_insert_with(|| super::Course {
+                    subject_code,
+                    course_code,
+                    title: section.course_title.clone(),
+                    campus: section.campus_description.clone(),
+                    sections: Vec::new(),
+                });
+
+            course.sections.push(section.try_into()?);
+        }
+
+        let mut courses = courses.into_values().collect::<Vec<_>>();
+        courses.sort_by_cached_key(|k| (k.subject_code.to_string(), k.course_code.to_string()));
+
+        Ok(courses)
     }
 
     #[instrument(skip(client, term))]
