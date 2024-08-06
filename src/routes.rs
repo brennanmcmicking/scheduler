@@ -88,6 +88,27 @@ impl DatabaseAppState {
         Ok(courses)
     }
 
+    fn search(&self, term: Term, query: &str) -> Result<Vec<String>> {
+        let db = self
+            .get_conn(&term)
+            .context("failed to get conn from pool")?;
+        let courses = db
+            .prepare(
+                "SELECT subject_code, course_code
+                FROM course
+                WHERE subject_code || course_code LIKE '%' || ?1 || '%'
+                   OR subject_code || ' ' || course_code LIKE '%' || ?2 || '%'",
+            )?
+            .query_and_then((query, query), |row| {
+                let subject: String = row.get("subject_code")?;
+                let course: String = row.get("course_code")?;
+                Ok(format!("{subject} {course}"))
+            })?
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(courses)
+    }
+
     pub fn get_conn(&self, term: &Term) -> Option<impl DerefMut<Target = Connection>> {
         self.terms.get(term).and_then(|p| p.get().ok())
     }
@@ -144,7 +165,7 @@ pub async fn make_app() -> Router {
         // `GET /` goes to `root`
         .route("/", get(root::root))
         .route("/term/:id", get(term::term))
-        .route("/search", post(search::search))
+        .route("/term/:id/search", post(search::search))
         .nest("/calendar", calendar_route)
         .with_state(state)
         .route_layer(
