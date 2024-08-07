@@ -60,6 +60,5 @@ pub async fn rm_from_calendar(
     State(_state): State<Arc<DatabaseAppState>>,
     Json(course_crn): Json<Search>,
 ) -> Markup {
-    debug!("rm_from_calendar");
-    html! {}
+    todo!()
 }
