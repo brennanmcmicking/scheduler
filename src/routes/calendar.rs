@@ -1,18 +1,14 @@
 use crate::{
     middlewares::CookieUserState,
-    scraper::{self, ThinCourse},
+    scraper::{Term, ThinCourse},
 };
 use anyhow::Context;
-use axum::{
-    extract::{Json, State},
-    http::StatusCode,
-    response::IntoResponse,
-    Extension, Form,
-};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Extension, Form};
 use axum_extra::extract::{cookie::Cookie, CookieJar};
-use maud::{html, Markup};
+use maud::html;
+use rusqlite::Connection;
 use serde::Deserialize;
-use std::sync::Arc;
+use std::{ops::DerefMut, sync::Arc};
 use tracing::{debug, instrument};
 
 use super::{AppError, DatabaseAppState};
@@ -34,7 +30,7 @@ pub async fn add_to_calendar<'a, 'b>(
     Form(form): Form<Search>,
 ) -> Result<impl IntoResponse, AppError> {
     // get queried term
-    let term: scraper::Term = form.term.parse().map_err(|err| {
+    let term: Term = form.term.parse().map_err(|err| {
         debug!(?err);
         StatusCode::BAD_REQUEST
     })?;
