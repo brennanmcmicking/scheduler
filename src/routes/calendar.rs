@@ -11,7 +11,7 @@ use axum::{
 use axum_extra::extract::CookieJar;
 use maud::{html, Markup};
 use serde::Deserialize;
-use std::sync::Arc;
+use std::{ops::DerefMut, sync::Arc};
 use tracing::{debug, instrument};
 
 use super::{AppError, DatabaseAppState};
