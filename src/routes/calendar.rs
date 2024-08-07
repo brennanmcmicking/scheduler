@@ -35,7 +35,7 @@ pub async fn add_to_calendar<'a, 'b>(
 ) -> Result<impl IntoResponse, AppError> {
     // get queried term
     let term: scraper::Term = form.term.parse().map_err(|err| {
-        dbg!(err);
+        debug!(?err);
         StatusCode::BAD_REQUEST
     })?;
 
