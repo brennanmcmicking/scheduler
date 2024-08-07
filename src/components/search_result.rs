@@ -1,16 +1,21 @@
 use maud::{html, Markup};
 
-pub fn render(courses: &Vec<String>) -> Markup {
+use crate::scraper::{Term, ThinCourse};
+
+pub fn render(term: Term, courses: &Vec<ThinCourse>) -> Markup {
     html! {
         div {
             @for course in courses {
+                @let course_name = format!("{} {}", course.subject_code, course.course_code);
                 form class="flex border-b dark:border-neutral-400 justify-between items-center mb-0" {
                     div class="text-xl dark:text-white" {
-                        (course)
+                        (course_name)
                     }
-                    button name="course" value=(course)
+                    input type="hidden" name="course_code" value=(course.course_code){}
+                    input type="hidden" name="subject_code" value=(course.subject_code){}
+                    button name="course" value=(course_name)
                     class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 text-black dark:text-white rounded-lg h-full p-1 my-1 text-xl shadow-lg"
-                    hx-put="/calendar" hx-target="#calendar-container" hx-swap="outerHTML" {
+                    hx-put={"/term/" (term) "/calendar"} hx-target="#courses-container" hx-swap="innerHTML" {
                         "add"
                     }
                 }

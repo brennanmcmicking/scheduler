@@ -1,8 +1,11 @@
 use maud::{html, Markup};
 
-use crate::{components, scraper::Term};
+use crate::{
+    components,
+    scraper::{Term, ThinCourse},
+};
 
-pub fn render(term: Term, courses: &Vec<String>) -> Markup {
+pub fn calendar_container(term: Term, courses: &Vec<ThinCourse>) -> Markup {
     html! {
         div id="calendar-container" class="flex flex-col w-full h-full lg:flex-row lg:p-1 gap-1" {
             div id="calendar-view-container" class="w-full h-1/2 lg:h-full" {
@@ -20,14 +23,20 @@ pub fn render(term: Term, courses: &Vec<String>) -> Markup {
                             hx-target="#search-results" {}
                     }
                     div id="search-results" class="w-full h-full rounded-lg p-1 bg-white dark:bg-neutral-800 overflow-y-auto shadow-lg" {
-                        (components::search_result::render(courses))
+                        (components::search_result::render(term, courses))
                     }
                 }
-                div id="courses-container" class="flex flex-col gap-2 h-full shrink-0 grow basis-1/2 lg:basis-1/5" {
-                    div id="courses-card" class="rounded-lg h-full bg-white dark:bg-neutral-800 flex justify-center items-center p-1 dark:text-white" {
-                        "selected courses"
-                    }
-                }
+                (courses_container())
+            }
+        }
+    }
+}
+
+pub fn courses_container() -> Markup {
+    html! {
+        div id="courses-container" class="flex flex-col gap-2 h-full shrink-0 grow basis-1/2 lg:basis-1/5" {
+            div id="courses-card" class="rounded-lg h-full bg-white dark:bg-neutral-800 flex justify-center items-center p-1 dark:text-white" {
+                "selected courses"
             }
         }
     }

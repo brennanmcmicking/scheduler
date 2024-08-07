@@ -12,11 +12,11 @@ use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
 use serde::{Deserialize, Serialize};
 use tracing::error;
 
-use crate::scraper::ThinCourse;
+use crate::scraper::{ThinCourse, ThinSection};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UserState {
-    pub selection: Vec<ThinCourse>,
+    pub selection: Vec<(ThinCourse, Vec<ThinSection>)>,
 }
 
 pub type CookieUserState = Extension<UserState>;
