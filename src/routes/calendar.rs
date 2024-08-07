@@ -5,11 +5,11 @@ use crate::{
 use anyhow::Context;
 use axum::{
     extract::{Json, State},
-    http::{header::SET_COOKIE, HeaderName, StatusCode},
-    response::{AppendHeaders, IntoResponse},
+    http::StatusCode,
+    response::IntoResponse,
     Extension, Form,
 };
-use axum_extra::extract::cookie::Cookie;
+use axum_extra::extract::{cookie::Cookie, CookieJar};
 use maud::{html, Markup};
 use serde::Deserialize;
 use std::sync::Arc;
@@ -62,11 +62,8 @@ pub async fn add_to_calendar<'a, 'b>(
         thincourse.subject_code == subject_code && thincourse.course_code == course_code
     });
 
-    let header: AppendHeaders<[(HeaderName, String); 1]> = if found {
-        // early return if course is already in the cookie state
-        let cookie: Cookie = user_state.into();
-        AppendHeaders([(SET_COOKIE, cookie.to_string())])
-    } else {
+    let mut jar = CookieJar::new();
+    if !found {
         // new course, new cookie
         let mut user_state = user_state.to_owned();
         user_state.selection.push(ThinCourse {
@@ -76,11 +73,11 @@ pub async fn add_to_calendar<'a, 'b>(
         });
 
         let cookie: Cookie = user_state.into();
-        AppendHeaders([(SET_COOKIE, cookie.to_string())])
-    };
+        jar = jar.add(cookie);
+    }
 
     Ok((
-        header,
+        jar,
         html! {
             p {
                 "added course "
