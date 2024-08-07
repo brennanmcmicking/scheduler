@@ -43,19 +43,7 @@ pub async fn add_to_calendar<'a, 'b>(
     let conn = state.get_conn(&term).ok_or(StatusCode::NOT_FOUND)?;
 
     // query db
-    let (subject_code, course_code) = conn
-        .prepare("SELECT subject_code, course_code FROM section WHERE crn = ?1;")
-        .context("failed to prepare courses SQL statement")?
-        .query_row([form.crn], |row| {
-            let sub: String = row.get(0)?;
-            let course: String = row.get(1)?;
-            Ok((sub, course))
-        })
-        .context("query failed, course not found")
-        .map_err(|err| {
-            debug!(?err);
-            StatusCode::NOT_FOUND
-        })?;
+    let (subject_code, course_code) = query_by_crn(&conn, &form.crn)?;
 
     // building response
     let found = user_state.selection.iter().any(|thincourse| {
@@ -98,4 +86,24 @@ pub async fn rm_from_calendar(
 ) -> Markup {
     debug!("rm_from_calendar");
     html! {}
+/// return the tuple `(subject_code, course_code)` if exists
+fn query_by_crn(
+    conn: &impl DerefMut<Target = Connection>,
+    crn: &String,
+) -> Result<(String, String), AppError> {
+    let query_result = conn
+        .prepare("SELECT subject_code, course_code FROM section WHERE crn = ?1;")
+        .context("failed to prepare courses SQL statement")?
+        .query_row([crn], |row| {
+            let sub: String = row.get(0)?;
+            let course: String = row.get(1)?;
+            Ok((sub, course))
+        })
+        .context("query failed, course not found")
+        .map_err(|err| {
+            debug!(?err);
+            StatusCode::NOT_FOUND
+        })?;
+
+    Ok(query_result)
 }
