@@ -12,7 +12,7 @@ use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
 use serde::{Deserialize, Serialize};
 use tracing::error;
 
-use crate::{routes::AppError, scraper::ThinCourse};
+use crate::scraper::ThinCourse;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UserState {
@@ -62,8 +62,10 @@ pub async fn parse_cookie(
     next: Next,
 ) -> Result<Response, (StatusCode, String)> {
     let user_state = match cookie.get("state") {
-        Some(raw_state) => UserState::try_from(raw_state.to_owned())
-            .map_err(|_| (StatusCode::BAD_REQUEST, String::from("malformed cookie")))?,
+        Some(raw_state) => UserState::try_from(raw_state.to_owned()).map_err(|err| {
+            error!(?err);
+            (StatusCode::BAD_REQUEST, String::from("malformed cookie"))
+        })?,
         None => Default::default(),
     };
 
