@@ -28,6 +28,6 @@ pub async fn search(
     debug!(?courses);
 
     Ok(html! {
-        (components::search_result::render(&courses))
+        (components::search_result::render(term, &courses))
     })
 }

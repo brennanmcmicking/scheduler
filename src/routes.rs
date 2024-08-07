@@ -5,7 +5,7 @@ use anyhow::{Context, Ok, Result};
 use axum::{
     http::{Request, StatusCode},
     response::{IntoResponse, Response},
-    routing::{delete, get, post, put},
+    routing::{get, post, put},
     Router,
 };
 use r2d2_sqlite::SqliteConnectionManager;
@@ -19,7 +19,10 @@ use tower_http::{
 };
 use tracing::{debug_span, error};
 
-use crate::{middlewares, scraper::Term};
+use crate::{
+    middlewares,
+    scraper::{Term, ThinCourse},
+};
 
 mod calendar;
 mod root;
@@ -68,7 +71,7 @@ impl DatabaseAppState {
         terms
     }
 
-    fn courses(&self, term: Term) -> Result<Vec<String>> {
+    fn courses(&self, term: Term) -> Result<Vec<ThinCourse>> {
         let Some(conn) = self.get_conn(&term) else {
             return Ok(Vec::new());
         };
@@ -77,9 +80,12 @@ impl DatabaseAppState {
             .prepare("SELECT subject_code, course_code FROM course")
             .context("failed to prepare courses SQL statement")?
             .query_and_then((), |row| {
-                let subject: String = row.get("subject_code")?;
-                let course: String = row.get("course_code")?;
-                Ok(format!("{subject} {course}"))
+                let subject_code = row.get("subject_code")?;
+                let course_code = row.get("course_code")?;
+                Ok(ThinCourse {
+                    subject_code,
+                    course_code,
+                })
             })
             .context("failed to execute query")?
             .collect::<Result<Vec<_>>>() // quit on the first error
@@ -88,7 +94,7 @@ impl DatabaseAppState {
         Ok(courses)
     }
 
-    fn search(&self, term: Term, query: &str) -> Result<Vec<String>> {
+    fn search(&self, term: Term, query: &str) -> Result<Vec<ThinCourse>> {
         let db = self
             .get_conn(&term)
             .context("failed to get conn from pool")?;
@@ -100,9 +106,12 @@ impl DatabaseAppState {
                    OR subject_code || ' ' || course_code LIKE '%' || ?2 || '%'",
             )?
             .query_and_then((query, query), |row| {
-                let subject: String = row.get("subject_code")?;
-                let course: String = row.get("course_code")?;
-                Ok(format!("{subject} {course}"))
+                let subject_code = row.get("subject_code")?;
+                let course_code = row.get("course_code")?;
+                Ok(ThinCourse {
+                    subject_code,
+                    course_code,
+                })
             })?
             .collect::<Result<Vec<_>>>()?;
 
@@ -156,17 +165,16 @@ pub async fn make_app() -> Router {
             .expect("failed to initialize database state"),
     );
 
-    let calendar_route = Router::new()
-        .route("/", put(calendar::add_to_calendar))
-        .route("/", delete(calendar::rm_from_calendar));
-
     Router::new()
         .nest_service("/assets", ServeDir::new("assets"))
         // `GET /` goes to `root`
         .route("/", get(root::root))
         .route("/term/:id", get(term::term))
         .route("/term/:id/search", post(search::search))
-        .nest("/calendar", calendar_route)
+        .route(
+            "/term/:id/calendar",
+            put(calendar::add_to_calendar).delete(calendar::rm_from_calendar),
+        )
         .with_state(state)
         .route_layer(
             tower::ServiceBuilder::new()

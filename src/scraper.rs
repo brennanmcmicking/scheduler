@@ -169,5 +169,4 @@ pub struct ThinSection {
 pub struct ThinCourse {
     pub subject_code: String,
     pub course_code: String,
-    pub sections: Vec<ThinSection>,
 }
