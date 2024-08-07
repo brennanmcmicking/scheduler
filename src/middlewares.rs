@@ -45,26 +45,13 @@ impl Default for UserState {
 }
 
 impl<'a> TryFrom<Cookie<'a>> for UserState {
-    type Error = AppError;
+    type Error = anyhow::Error;
 
     fn try_from(cookie: Cookie<'a>) -> Result<Self, Self::Error> {
         let cookie_base64 = cookie.value();
-
-        let cookie_json = STANDARD_NO_PAD.decode(cookie_base64).map_err(|err| {
-            error!("invalid base64 encoded cookie: {}", err);
-            StatusCode::BAD_REQUEST
-        })?;
-
-        let cookie_json = str::from_utf8(cookie_json.as_ref()).map_err(|err| {
-            error!("invalid utf 8 string: {}", err);
-            StatusCode::BAD_REQUEST
-        })?;
-
-        let userstate: UserState = serde_json::from_str(cookie_json).map_err(|err| {
-            error!("invalid json encoded cookie: {}", err);
-            StatusCode::BAD_REQUEST
-        })?;
-
+        let cookie_json = STANDARD_NO_PAD.decode(cookie_base64)?;
+        let cookie_json = str::from_utf8(cookie_json.as_ref())?;
+        let userstate: UserState = serde_json::from_str(cookie_json)?;
         Ok(userstate)
     }
 }
