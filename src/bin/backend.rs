@@ -1,3 +1,5 @@
+use std::net::Ipv4Addr;
+
 use anyhow::{anyhow, Context};
 use scheduler::routes;
 use tracing::info;
@@ -32,6 +34,12 @@ async fn main() -> anyhow::Result<()> {
         .await
         .with_context(|| anyhow!("failed to bind listener to {}", soc))?;
     info!("listening on http://{}", &soc);
+    if soc.ip() == std::net::IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)) {
+        info!(
+            "for local dev, please use  http://127.0.0.1:{} to make secure cookies work",
+            &soc.port()
+        );
+    }
 
     axum::serve(listener, app)
         .await
