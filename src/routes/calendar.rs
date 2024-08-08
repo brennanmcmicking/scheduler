@@ -1,5 +1,5 @@
 use crate::{
-    components::container::courses_container,
+    components::container::{calendar_view_container, courses_container},
     middlewares::CookieUserState,
     scraper::{self, ThinCourse},
 };
@@ -38,7 +38,7 @@ pub async fn add_to_calendar<'a, 'b>(
 
     // no-op if course is already in state
     if user_state.selection.iter().any(|c| c.0 == course) {
-        return Ok((CookieJar::new(), courses_container()));
+        return Ok((CookieJar::new(), html!()));
     }
 
     // query db
@@ -53,7 +53,13 @@ pub async fn add_to_calendar<'a, 'b>(
         Cookie::from(user_state)
     });
 
-    Ok((jar, courses_container()))
+    Ok((
+        jar,
+        html! {
+            (calendar_view_container(true))
+            (courses_container(true))
+        },
+    ))
 }
 
 #[instrument(level = "debug", skip(_state))]
