@@ -165,7 +165,7 @@ pub struct ThinSection {
     pub crn: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ThinCourse {
     pub subject_code: String,
     pub course_code: String,

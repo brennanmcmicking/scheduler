@@ -21,7 +21,7 @@ use tracing::{debug_span, error};
 
 use crate::{
     middlewares,
-    scraper::{Term, ThinCourse},
+    scraper::{Term, ThinCourse, ThinSection},
 };
 
 mod calendar;
@@ -116,6 +116,26 @@ impl DatabaseAppState {
             .collect::<Result<Vec<_>>>()?;
 
         Ok(courses)
+    }
+
+    fn thin_sections(&self, term: &Term, course: ThinCourse) -> Result<Vec<(String, ThinSection)>> {
+        let conn = self
+            .get_conn(term)
+            .context("failed to get conn from pool")?;
+
+        let sections = conn.prepare(
+            "SELECT sequence_code, crn FROM section WHERE subject_code = ?1 AND course_code = ?2",
+        )
+        .context("failed to prepare courses SQL statement")?
+        .query_and_then((&course.subject_code, &course.course_code), |row| {
+            let sequence_code: String = row.get(0)?;
+            let crn: u64 = row.get(1)?;
+            Ok((sequence_code, ThinSection { crn }))
+        })
+        .context("query failed")?
+        .collect::<anyhow::Result<Vec<_>>>()?;
+
+        Ok(sections)
     }
 
     pub fn get_conn(&self, term: &Term) -> Option<impl DerefMut<Target = Connection>> {

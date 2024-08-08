@@ -1,9 +1,8 @@
 use crate::{
     components::container::courses_container,
     middlewares::CookieUserState,
-    scraper::{self, ThinCourse, ThinSection},
+    scraper::{self, ThinCourse},
 };
-use anyhow::Context;
 use axum::{
     extract::{Json, Path, State},
     http::StatusCode,
@@ -23,8 +22,8 @@ use super::{AppError, DatabaseAppState};
 
 #[derive(Deserialize, Debug)]
 pub struct Search {
-    subject_code: String,
-    course_code: String,
+    #[serde(flatten)]
+    course: ThinCourse,
 }
 
 #[instrument(level = "debug", skip(state))]
@@ -32,10 +31,7 @@ pub async fn add_to_calendar<'a, 'b>(
     Path(term): Path<String>,
     State(state): State<Arc<DatabaseAppState>>,
     Extension(user_state): CookieUserState,
-    Form(Search {
-        subject_code,
-        course_code,
-    }): Form<Search>,
+    Form(Search { course }): Form<Search>,
 ) -> Result<impl IntoResponse, AppError> {
     // get queried term
     let term: scraper::Term = term.parse().map_err(|err| {
@@ -44,30 +40,12 @@ pub async fn add_to_calendar<'a, 'b>(
     })?;
 
     // no-op if course is already in state
-    if user_state
-        .selection
-        .iter()
-        .any(|c| c.0.subject_code == subject_code && c.0.course_code == course_code)
-    {
+    if user_state.selection.iter().any(|c| c.0 == course) {
         return Ok((CookieJar::new(), courses_container()));
     }
 
-    // get a db conn
-    let conn = state.get_conn(&term).ok_or(StatusCode::NOT_FOUND)?;
-
     // query db
-    let sections = conn
-        .prepare(
-            "SELECT sequence_code, crn FROM section WHERE subject_code = ?1 AND course_code = ?2",
-        )
-        .context("failed to prepare courses SQL statement")?
-        .query_and_then((&subject_code, &course_code), |row| {
-            let sequence_code: String = row.get(0)?;
-            let crn: u64 = row.get(1)?;
-            Ok((sequence_code, crn))
-        })
-        .context("query failed")?
-        .collect::<anyhow::Result<Vec<_>>>()?;
+    let sections = state.thin_sections(&term, course.clone())?;
 
     let mut default_sections = HashMap::new();
     for (sequence_code, crn) in sections {
@@ -87,20 +65,14 @@ pub async fn add_to_calendar<'a, 'b>(
     default_sections.sort_by_cached_key(|t| t.0.clone());
     let default_sections = default_sections
         .into_iter()
-        .map(|t| ThinSection { crn: t.1 .1 })
+        .map(|(_, (_, s))| s)
         .collect::<Vec<_>>();
 
     debug!(?default_sections);
 
     let jar = CookieJar::new().add({
         let mut user_state = user_state.clone();
-        user_state.selection.push((
-            ThinCourse {
-                subject_code,
-                course_code,
-            },
-            default_sections,
-        ));
+        user_state.selection.push((course, default_sections));
 
         Cookie::from(user_state)
     });
