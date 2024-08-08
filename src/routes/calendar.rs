@@ -12,10 +12,7 @@ use axum::{
 use axum_extra::extract::{cookie::Cookie, CookieJar};
 use maud::{html, Markup};
 use serde::Deserialize;
-use std::{
-    collections::{hash_map::Entry, HashMap},
-    sync::Arc,
-};
+use std::sync::Arc;
 use tracing::{debug, instrument};
 
 use super::{AppError, DatabaseAppState};
@@ -45,28 +42,7 @@ pub async fn add_to_calendar<'a, 'b>(
     }
 
     // query db
-    let sections = state.thin_sections(&term, course.clone())?;
-
-    let mut default_sections = HashMap::new();
-    for (sequence_code, crn) in sections {
-        let (letter, rest) = sequence_code.split_at(1);
-        match default_sections.entry(letter.to_string()) {
-            Entry::Vacant(e) => {
-                e.insert((rest.to_string(), crn));
-            }
-            Entry::Occupied(mut e) => {
-                if *rest < *e.get().0 {
-                    e.insert((rest.to_string(), crn));
-                }
-            }
-        }
-    }
-    let mut default_sections = default_sections.into_iter().collect::<Vec<_>>();
-    default_sections.sort_by_cached_key(|t| t.0.clone());
-    let default_sections = default_sections
-        .into_iter()
-        .map(|(_, (_, s))| s)
-        .collect::<Vec<_>>();
+    let default_sections = state.default_thin_sections(&term, course.clone())?;
 
     debug!(?default_sections);
 

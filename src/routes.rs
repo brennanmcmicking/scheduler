@@ -8,6 +8,7 @@ use axum::{
     routing::{get, post, put},
     Router,
 };
+use itertools::Itertools;
 use r2d2_sqlite::SqliteConnectionManager;
 use regex::bytes::Regex;
 use rusqlite::{Connection, OpenFlags};
@@ -118,7 +119,7 @@ impl DatabaseAppState {
         Ok(courses)
     }
 
-    fn thin_sections(&self, term: &Term, course: ThinCourse) -> Result<Vec<(String, ThinSection)>> {
+    fn default_thin_sections(&self, term: &Term, course: ThinCourse) -> Result<Vec<ThinSection>> {
         let conn = self
             .get_conn(term)
             .context("failed to get conn from pool")?;
@@ -135,7 +136,19 @@ impl DatabaseAppState {
         .context("query failed")?
         .collect::<anyhow::Result<Vec<_>>>()?;
 
-        Ok(sections)
+        let default_sections = sections
+            .into_iter()
+            .chunk_by(|t| t.0.chars().nth(0))
+            .into_iter()
+            .map(|(_, chunk)| {
+                chunk
+                    .min_by_key(|(sequence_code, _)| sequence_code.clone())
+                    .expect("empty group in group_by")
+                    .1
+            })
+            .collect::<Vec<_>>();
+
+        Ok(default_sections)
     }
 
     pub fn get_conn(&self, term: &Term) -> Option<impl DerefMut<Target = Connection>> {
