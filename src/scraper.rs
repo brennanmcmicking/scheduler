@@ -1,3 +1,4 @@
+use core::fmt;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::{cmp::Ordering, fmt::Display, str::FromStr};
 
@@ -128,6 +129,55 @@ pub struct Days {
     pub friday: bool,
     pub saturday: bool,
     pub sunday: bool,
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum Day {
+    MONDAY,
+    TUESDAY,
+    WEDNESDAY,
+    THURSDAY,
+    FRIDAY,
+    SATURDAY,
+    SUNDAY,
+}
+
+impl Day {
+    pub const ALL: [Self; 7] = [
+        Self::MONDAY,
+        Self::TUESDAY,
+        Self::WEDNESDAY,
+        Self::THURSDAY,
+        Self::FRIDAY,
+        Self::SATURDAY,
+        Self::SUNDAY,
+    ];
+
+    pub const WEEKDAYS: [Self; 5] = [
+        Self::MONDAY,
+        Self::TUESDAY,
+        Self::WEDNESDAY,
+        Self::THURSDAY,
+        Self::FRIDAY,
+    ];
+
+    pub(crate) fn is_in_days(&self, days: Days) -> bool {
+        match self {
+            Day::MONDAY => days.monday,
+            Day::TUESDAY => days.tuesday,
+            Day::WEDNESDAY => days.wednesday,
+            Day::THURSDAY => days.thursday,
+            Day::FRIDAY => days.friday,
+            Day::SATURDAY => days.saturday,
+            Day::SUNDAY => days.sunday,
+        }
+    }
+}
+
+impl fmt::Display for Day {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 #[derive(Debug, Clone)]

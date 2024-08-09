@@ -48,7 +48,7 @@ pub async fn add_to_calendar<'a, 'b>(
     Ok((
         jar,
         html! {
-            (calendar_view_container(true))
+            (calendar_view_container(true, &vec![]))
             (courses_container(true))
         },
     ))
