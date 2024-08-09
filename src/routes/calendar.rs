@@ -1,15 +1,14 @@
 use crate::{
-    middlewares::CookieUserState,
-    scraper::{self, ThinCourse},
+    components::container::{calendar_view_container, courses_container},
+    middlewares::SelectedCourses,
+    scraper::{Term, ThinCourse},
 };
-use anyhow::Context;
 use axum::{
-    extract::{Json, State},
-    http::StatusCode,
+    extract::{Json, Path, State},
     response::IntoResponse,
-    Extension, Form,
+    Form,
 };
-use axum_extra::extract::{cookie::Cookie, CookieJar};
+use axum_extra::extract::CookieJar;
 use maud::{html, Markup};
 use serde::Deserialize;
 use std::sync::Arc;
@@ -19,80 +18,45 @@ use super::{AppError, DatabaseAppState};
 
 #[derive(Deserialize, Debug)]
 pub struct Search {
-    pub term: String,
-    pub crn: String,
+    course: ThinCourse,
 }
 
-/// curl
-/// -X PUT "http://localhost:8080/calendar"
-/// -H "Content-Type: application/x-www-form-urlencoded"\
-/// -d "crn=23962&term=202501"
 #[instrument(level = "debug", skip(state))]
 pub async fn add_to_calendar<'a, 'b>(
+    Path(term): Path<Term>,
     State(state): State<Arc<DatabaseAppState>>,
-    Extension(user_state): CookieUserState,
-    Form(form): Form<Search>,
+    selected_courses: SelectedCourses,
+    Form(Search { course }): Form<Search>,
 ) -> Result<impl IntoResponse, AppError> {
-    // get queried term
-    let term: scraper::Term = form.term.parse().map_err(|err| {
-        debug!(?err);
-        StatusCode::BAD_REQUEST
-    })?;
-
-    // get a db conn
-    let conn = state.get_conn(&term).ok_or(StatusCode::NOT_FOUND)?;
+    // no-op if course is already in state
+    if selected_courses.courses.keys().any(|c| *c == course) {
+        return Ok((CookieJar::new(), html!()));
+    }
 
     // query db
-    let (subject_code, course_code) = conn
-        .prepare("SELECT subject_code, course_code FROM section WHERE crn = ?1;")
-        .context("failed to prepare courses SQL statement")?
-        .query_row([form.crn], |row| {
-            let sub: String = row.get(0)?;
-            let course: String = row.get(1)?;
-            Ok((sub, course))
-        })
-        .context("query failed, course not found")
-        .map_err(|err| {
-            debug!(?err);
-            StatusCode::NOT_FOUND
-        })?;
+    let default_sections = state.default_thin_sections(&term, course.clone())?;
 
-    // building response
-    let found = user_state.selection.iter().any(|thincourse| {
-        thincourse.subject_code == subject_code && thincourse.course_code == course_code
+    debug!(?default_sections);
+
+    let jar = CookieJar::new().add({
+        let mut user_state = selected_courses.clone();
+        user_state.courses.insert(course, default_sections);
+
+        user_state.make_cookie(term)
     });
-
-    let mut jar = CookieJar::new();
-    if !found {
-        // new course, new cookie
-        let mut user_state = user_state.to_owned();
-        user_state.selection.push(ThinCourse {
-            subject_code,
-            course_code,
-            sections: Vec::new(),
-        });
-
-        let cookie: Cookie = user_state.into();
-        jar = jar.add(cookie);
-    }
 
     Ok((
         jar,
         html! {
-            p {
-                "added course "
-            }
+            (calendar_view_container(true))
+            (courses_container(true))
         },
     ))
 }
 
-// curl
-// -H "Content-Type: application/json"
-// -X DELETE "http://localhost:8080/calendar"
-// -d '{"crn": ["123", "456"]}'
 #[instrument(level = "debug", skip(_state))]
 pub async fn rm_from_calendar(
-    user_state: CookieUserState,
+    _selected_courses: SelectedCourses,
     State(_state): State<Arc<DatabaseAppState>>,
     Json(course_crn): Json<Search>,
 ) -> Markup {

@@ -1,5 +1,4 @@
-use crate::middlewares::CookieUserState;
-use axum::extract::{Extension, State};
+use axum::extract::State;
 use maud::{html, Markup};
 use std::sync::Arc;
 use tracing::{debug, instrument};
@@ -9,10 +8,7 @@ use crate::components;
 use super::DatabaseAppState;
 
 #[instrument(level = "debug", skip(state))]
-pub async fn root(
-    State(state): State<Arc<DatabaseAppState>>,
-    Extension(user_state): CookieUserState,
-) -> Markup {
+pub async fn root(State(state): State<Arc<DatabaseAppState>>) -> Markup {
     debug!("root");
     components::base(html! {
         div class="flex flex-col gap-2 py-2 px-64 h-full justify-items-center" {

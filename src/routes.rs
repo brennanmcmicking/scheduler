@@ -5,9 +5,10 @@ use anyhow::{Context, Ok, Result};
 use axum::{
     http::{Request, StatusCode},
     response::{IntoResponse, Response},
-    routing::{delete, get, post, put},
+    routing::{get, post, put},
     Router,
 };
+use itertools::Itertools;
 use r2d2_sqlite::SqliteConnectionManager;
 use regex::bytes::Regex;
 use rusqlite::{Connection, OpenFlags};
@@ -19,7 +20,7 @@ use tower_http::{
 };
 use tracing::{debug_span, error};
 
-use crate::{middlewares, scraper::Term};
+use crate::scraper::{Term, ThinCourse, ThinSection};
 
 mod calendar;
 mod root;
@@ -68,7 +69,7 @@ impl DatabaseAppState {
         terms
     }
 
-    fn courses(&self, term: Term) -> Result<Vec<String>> {
+    fn courses(&self, term: Term) -> Result<Vec<ThinCourse>> {
         let Some(conn) = self.get_conn(&term) else {
             return Ok(Vec::new());
         };
@@ -77,9 +78,12 @@ impl DatabaseAppState {
             .prepare("SELECT subject_code, course_code FROM course")
             .context("failed to prepare courses SQL statement")?
             .query_and_then((), |row| {
-                let subject: String = row.get("subject_code")?;
-                let course: String = row.get("course_code")?;
-                Ok(format!("{subject} {course}"))
+                let subject_code = row.get("subject_code")?;
+                let course_code = row.get("course_code")?;
+                Ok(ThinCourse {
+                    subject_code,
+                    course_code,
+                })
             })
             .context("failed to execute query")?
             .collect::<Result<Vec<_>>>() // quit on the first error
@@ -88,7 +92,7 @@ impl DatabaseAppState {
         Ok(courses)
     }
 
-    fn search(&self, term: Term, query: &str) -> Result<Vec<String>> {
+    fn search(&self, term: Term, query: &str) -> Result<Vec<ThinCourse>> {
         let db = self
             .get_conn(&term)
             .context("failed to get conn from pool")?;
@@ -100,13 +104,48 @@ impl DatabaseAppState {
                    OR subject_code || ' ' || course_code LIKE '%' || ?2 || '%'",
             )?
             .query_and_then((query, query), |row| {
-                let subject: String = row.get("subject_code")?;
-                let course: String = row.get("course_code")?;
-                Ok(format!("{subject} {course}"))
+                let subject_code = row.get("subject_code")?;
+                let course_code = row.get("course_code")?;
+                Ok(ThinCourse {
+                    subject_code,
+                    course_code,
+                })
             })?
             .collect::<Result<Vec<_>>>()?;
 
         Ok(courses)
+    }
+
+    fn default_thin_sections(&self, term: &Term, course: ThinCourse) -> Result<Vec<ThinSection>> {
+        let conn = self
+            .get_conn(term)
+            .context("failed to get conn from pool")?;
+
+        let sections = conn.prepare(
+            "SELECT sequence_code, crn FROM section WHERE subject_code = ?1 AND course_code = ?2",
+        )
+        .context("failed to prepare courses SQL statement")?
+        .query_and_then((&course.subject_code, &course.course_code), |row| {
+            let sequence_code: String = row.get(0)?;
+            let crn: u64 = row.get(1)?;
+            Ok((sequence_code, ThinSection { crn }))
+        })
+        .context("query failed")?
+        .collect::<anyhow::Result<Vec<_>>>()?;
+
+        let default_sections = sections
+            .into_iter()
+            .chunk_by(|t| t.0.chars().nth(0))
+            .into_iter()
+            .map(|(_, chunk)| {
+                chunk
+                    .min_by_key(|(sequence_code, _)| sequence_code.clone())
+                    .expect("empty group in group_by")
+                    .1
+            })
+            .collect::<Vec<_>>();
+
+        Ok(default_sections)
     }
 
     pub fn get_conn(&self, term: &Term) -> Option<impl DerefMut<Target = Connection>> {
@@ -156,22 +195,21 @@ pub async fn make_app() -> Router {
             .expect("failed to initialize database state"),
     );
 
-    let calendar_route = Router::new()
-        .route("/", put(calendar::add_to_calendar))
-        .route("/", delete(calendar::rm_from_calendar));
-
     Router::new()
         .nest_service("/assets", ServeDir::new("assets"))
         // `GET /` goes to `root`
         .route("/", get(root::root))
-        .route("/term/:id", get(term::term))
-        .route("/term/:id/search", post(search::search))
-        .nest("/calendar", calendar_route)
-        .with_state(state)
-        .route_layer(
-            tower::ServiceBuilder::new()
-                .layer(axum::middleware::from_fn(middlewares::parse_cookie)),
+        .nest(
+            "/term/:term",
+            Router::new()
+                .route("/", get(term::term))
+                .route("/search", post(search::search))
+                .route(
+                    "/calendar",
+                    put(calendar::add_to_calendar).delete(calendar::rm_from_calendar),
+                ),
         )
+        .with_state(state)
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(|request: &Request<_>| {
