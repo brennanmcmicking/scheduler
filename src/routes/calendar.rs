@@ -13,7 +13,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 use tracing::instrument;
 
-use super::{AppError, DatabaseAppState, SectionType};
+use super::{selected_sections, AppError, DatabaseAppState, SectionType};
 
 #[derive(Deserialize, Debug)]
 pub struct Add {
@@ -45,12 +45,13 @@ pub async fn add_to_calendar<'a, 'b>(
     };
 
     let courses = state.courses(term, &selected.thin_courses())?;
+    let sections = selected_sections(&courses, &selected);
 
     Ok((
         jar,
         html! {
-            (calendar_view_container(true))
-            (courses_container(true, term, &courses, &selected))
+            (calendar_view_container(true, &sections))
+            (courses_container(true, term, &courses, &sections))
         },
     ))
 }
@@ -70,12 +71,13 @@ pub async fn rm_from_calendar(
     // no-op if course is not in cookie
     if !selected.courses.keys().any(|c| *c == course) {
         let courses = state.courses(term, &selected.thin_courses())?;
+        let sections = selected_sections(&courses, &selected);
 
         return Ok((
             CookieJar::new(),
             html! {
-                (calendar_view_container(true))
-                (courses_container(true, term, &courses, &selected))
+                (calendar_view_container(true, &sections))
+                (courses_container(true, term, &courses, &sections))
             },
         ));
     }
@@ -88,12 +90,13 @@ pub async fn rm_from_calendar(
     let jar = CookieJar::new().add(new_selected.make_cookie(term));
 
     let courses = state.courses(term, &new_selected.thin_courses())?;
+    let sections = selected_sections(&courses, &selected);
 
     Ok((
         jar,
         html! {
-            (calendar_view_container(true))
-            (courses_container(true, term, &courses, &new_selected))
+            (calendar_view_container(true, &sections))
+            (courses_container(true, term, &courses, &sections))
         },
     ))
 }
@@ -134,12 +137,13 @@ pub async fn update_calendar(
     }
 
     let courses = state.courses(term, &selected.thin_courses())?;
+    let sections = selected_sections(&courses, &selected);
 
     Ok((
         CookieJar::new().add(selected.make_cookie(term)),
         html! {
-            (calendar_view_container(true))
-            (courses_container(true, term, &courses, &selected))
+            (calendar_view_container(true, &sections))
+            (courses_container(true, term, &courses, &sections))
         },
     ))
 }

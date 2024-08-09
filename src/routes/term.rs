@@ -1,4 +1,4 @@
-use crate::{middlewares::SelectedCourses, scraper::Term};
+use crate::{middlewares::SelectedCourses, routes::selected_sections, scraper::Term};
 use axum::extract::{Path, State};
 use maud::{html, Markup};
 use std::sync::Arc;
@@ -17,8 +17,9 @@ pub async fn term(
     debug!("term endpoint called");
     let search_courses = state.thin_courses(term)?;
     let courses = state.courses(term, &selected.thin_courses())?;
+    let sections = selected_sections(&courses, &selected);
 
     Ok(components::base(html! {
-        (components::container::calendar_container(term, &search_courses, &courses, &selected))
+        (components::container::calendar_container(term, &search_courses, &courses, &sections))
     }))
 }
