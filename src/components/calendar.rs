@@ -247,7 +247,11 @@ pub fn render(sections: &Vec<Section>) -> Markup {
                 div class="text-[calc(1vh)] lg:text-sm shrink flex justify-center items-center" { "time" }
                 div class="relative flex flex-col grow gap-0.5 lg:gap-1" {
                     @for time in &timeslots {
-                        div class="text-[calc(1vh)] lg:text-sm h-auto grow bg-neutral-700 px-1 flex justify-center items-center" { (time_to_string(*time)) }
+                        @if &time.floor() != time {
+                            div class="text-[calc(1vh)] lg:text-sm h-auto grow bg-neutral-700 px-1 flex justify-center items-center hidden lg:block" { (time_to_string(*time)) }
+                        } @else {
+                            div class="text-[calc(1vh)] lg:text-sm h-auto grow bg-neutral-700 px-1 flex justify-center items-center" { (time_to_string(*time)) }
+                        }
                     }
                 }
             }
