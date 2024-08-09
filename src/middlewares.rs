@@ -1,34 +1,32 @@
-use core::str;
+use std::{collections::BTreeMap, str};
 
 use axum::{
-    extract::{Extension, Request},
-    http::StatusCode,
-    middleware::Next,
-    response::Response,
+    async_trait,
+    extract::{FromRequestParts, Path},
+    http::{request, StatusCode},
 };
 use axum_extra::extract::{cookie::Cookie, CookieJar};
 use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
-
 use serde::{Deserialize, Serialize};
-use tracing::error;
 
-use crate::scraper::{ThinCourse, ThinSection};
+use crate::scraper::{Term, ThinCourse, ThinSection};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct UserState {
-    pub selection: Vec<(ThinCourse, Vec<ThinSection>)>,
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct SelectedCourses {
+    pub courses: BTreeMap<ThinCourse, Vec<ThinSection>>,
 }
 
-pub type CookieUserState = Extension<UserState>;
+impl SelectedCourses {
+    fn cookie_name(term: Term) -> String {
+        format!("selected_courses_{}", term)
+    }
 
-impl<'a> From<UserState> for Cookie<'a> {
-    fn from(userstate: UserState) -> Self {
-        let userstate_json =
-            serde_json::to_string(&userstate).expect("failed to serialize to json");
+    pub fn make_cookie(&self, term: Term) -> Cookie<'static> {
+        let userstate_json = serde_json::to_string(&self).expect("failed to serialize to json");
 
         let userstate_base64 = STANDARD_NO_PAD.encode(userstate_json);
 
-        Cookie::build(("state", userstate_base64))
+        Cookie::build((Self::cookie_name(term), userstate_base64))
             .http_only(true)
             .secure(true)
             // .max_age(Duration::MAX) // do we want exp date?
@@ -37,39 +35,47 @@ impl<'a> From<UserState> for Cookie<'a> {
     }
 }
 
-impl Default for UserState {
-    fn default() -> Self {
-        let selection = Vec::new();
-        UserState { selection }
-    }
-}
-
-impl<'a> TryFrom<Cookie<'a>> for UserState {
+impl<'a> TryFrom<&Cookie<'a>> for SelectedCourses {
     type Error = anyhow::Error;
 
-    fn try_from(cookie: Cookie<'a>) -> Result<Self, Self::Error> {
+    fn try_from(cookie: &Cookie<'a>) -> Result<Self, Self::Error> {
         let cookie_base64 = cookie.value();
         let cookie_json = STANDARD_NO_PAD.decode(cookie_base64)?;
-        let cookie_json = str::from_utf8(cookie_json.as_ref())?;
-        let userstate: UserState = serde_json::from_str(cookie_json)?;
+        let userstate = serde_json::from_slice(&cookie_json)?;
         Ok(userstate)
     }
 }
 
-pub async fn parse_cookie(
-    cookie: CookieJar,
-    mut req: Request,
-    next: Next,
-) -> Result<Response, (StatusCode, String)> {
-    let user_state = match cookie.get("state") {
-        Some(raw_state) => UserState::try_from(raw_state.to_owned()).map_err(|err| {
-            error!(?err);
-            (StatusCode::BAD_REQUEST, String::from("malformed cookie"))
-        })?,
-        None => Default::default(),
-    };
+#[derive(Deserialize)]
+struct TermPath {
+    term: Term,
+}
 
-    req.extensions_mut().insert(user_state);
+#[async_trait] // needed to prevent lifetime errors
+impl<S: Send + Sync> FromRequestParts<S> for SelectedCourses {
+    type Rejection = StatusCode;
 
-    Ok(next.run(req).await)
+    async fn from_request_parts(
+        parts: &mut request::Parts,
+        state: &S,
+    ) -> Result<Self, Self::Rejection> {
+        let Path(TermPath { term }) =
+            Path::from_request_parts(parts, state)
+                .await
+                .map_err(|err| {
+                    tracing::trace!("failed to get term from path: {:?}", err);
+                    StatusCode::NOT_FOUND
+                })?;
+
+        let jar = CookieJar::from_request_parts(parts, state).await.unwrap();
+
+        Ok(match jar.get(&Self::cookie_name(term)) {
+            Some(cookie) => Self::try_from(cookie).map_err(|err| {
+                tracing::trace!("failed to parse: {:?}", err);
+                StatusCode::NOT_FOUND
+            })?,
+
+            None => Self::default(),
+        })
+    }
 }

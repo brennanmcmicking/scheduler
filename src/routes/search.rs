@@ -1,6 +1,5 @@
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
     Form,
 };
 use maud::{html, Markup};
@@ -19,11 +18,10 @@ pub struct Search {
 
 #[instrument(level = "debug", skip(state))]
 pub async fn search(
-    Path(id): Path<String>, // TODO: implement Deserialize on Term
+    Path(term): Path<Term>,
     State(state): State<Arc<DatabaseAppState>>,
     Form(query): Form<Search>,
 ) -> Result<Markup, AppError> {
-    let term = id.parse::<Term>().map_err(|_| StatusCode::BAD_REQUEST)?;
     let courses = state.search(term, &query.search)?;
     debug!(?courses);
 
