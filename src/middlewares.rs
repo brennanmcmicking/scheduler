@@ -59,6 +59,10 @@ impl SelectedCourses {
             // .domain(value) // TODO: set domain?
             .build()
     }
+
+    pub fn crns(&self) -> Vec<u64> {
+        self.courses.values().flat_map(|s| s.crns()).collect()
+    }
 }
 
 impl<'a> TryFrom<&Cookie<'a>> for SelectedCourses {

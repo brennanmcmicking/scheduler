@@ -3,7 +3,6 @@ use tracing::debug;
 
 use crate::{
     components,
-    middlewares::SelectedCourses,
     scraper::{Course, Section, Term, ThinCourse},
 };
 
@@ -11,12 +10,17 @@ pub fn calendar_container(
     term: Term,
     search_courses: &[ThinCourse],
     courses: &[Course],
-    selected: &SelectedCourses,
+    selected: &Vec<Section>,
 ) -> Markup {
     html! {
         div id="calendar-container" class="flex flex-col w-full h-full lg:flex-row lg:p-1 gap-1" {
+            // div id="calendar-view-container" class="w-full h-1/2 lg:h-full" {
+            //     div class="w-full h-full lg:p-1 flex justify-center items-center bg-white dark:bg-neutral-800 dark:text-white lg:rounded-lg shadow-xl" {
+            //         (components::calendar::render(&sections))
+            //     }
+            // }
             div id="interactive-container" class="w-full h-1/2 flex flex-row px-1 pb-1 gap-1 lg:contents" {
-                (calendar_view_container(false))
+                (calendar_view_container(false, selected))
                 div id="search-container" class="flex flex-col gap-1 h-full grow-0 max-w-48 lg:w-48 lg:shrink-0 lg:order-first" {
                     div id="search-text-container" class="w-full h-16 rounded-lg p-1 bg-white dark:bg-neutral-800 text-xl shadow-lg" {
                         input class="form-control w-full h-full lowercase bg-white dark:bg-neutral-800 dark:text-white dark:placeholder:text-neutral-400" type="search"
@@ -35,11 +39,11 @@ pub fn calendar_container(
     }
 }
 
-pub fn calendar_view_container(oob: bool) -> Markup {
+pub fn calendar_view_container(oob: bool, sections: &Vec<Section>) -> Markup {
     html! {
         div id="calendar-view-container" hx-swap-oob=[if oob {Some("true")} else {None}] class="w-full h-1/2 lg:h-full" {
             div class="w-full h-full lg:p-1 flex justify-center items-center bg-white dark:bg-neutral-800 dark:text-white lg:rounded-lg shadow-xl" {
-                (components::calendar::render())
+                (components::calendar::render(sections))
             }
         }
     }
@@ -49,9 +53,9 @@ pub fn courses_container(
     oob: bool,
     term: Term,
     courses: &[Course],
-    selected: &SelectedCourses,
+    selected: &[Section],
 ) -> Markup {
-    let selected: Vec<u64> = selected.courses.values().flat_map(|s| s.crns()).collect();
+    let selected: Vec<u64> = selected.iter().map(|s| s.crn).collect();
     debug!(?selected);
     html! {
         section class="h-full overflow-y-hidden shrink-0 grow basis-1/2 lg:basis-1/5 bg-white dark:bg-neutral-800 p-2" {

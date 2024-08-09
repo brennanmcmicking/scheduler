@@ -20,7 +20,7 @@ use tower_http::{
 use tracing::{debug_span, error};
 
 use crate::{
-    middlewares::Selection,
+    middlewares::{SelectedCourses, Selection},
     scraper::{Course, Days, MeetingTime, Section, Term, ThinCourse, ThinSection},
 };
 
@@ -33,6 +33,15 @@ pub enum SectionType {
     Lecture,
     Lab,
     Tutorial,
+}
+
+pub fn selected_sections(courses: &Vec<Course>, selected: &SelectedCourses) -> Vec<Section> {
+    let crns = selected.crns();
+    courses
+        .iter()
+        .flat_map(|c| c.sections.clone())
+        .filter(|s| crns.contains(&s.crn))
+        .collect()
 }
 
 pub struct DatabaseAppState {
