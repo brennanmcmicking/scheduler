@@ -1,15 +1,14 @@
 use crate::{
     components::container::{calendar_view_container, courses_container},
-    middlewares::CookieUserState,
-    scraper::{self, ThinCourse},
+    middlewares::SelectedCourses,
+    scraper::{Term, ThinCourse},
 };
 use axum::{
     extract::{Json, Path, State},
-    http::StatusCode,
     response::IntoResponse,
-    Extension, Form,
+    Form,
 };
-use axum_extra::extract::{cookie::Cookie, CookieJar};
+use axum_extra::extract::CookieJar;
 use maud::{html, Markup};
 use serde::Deserialize;
 use std::sync::Arc;
@@ -19,25 +18,18 @@ use super::{AppError, DatabaseAppState};
 
 #[derive(Deserialize, Debug)]
 pub struct Search {
-    #[serde(flatten)]
     course: ThinCourse,
 }
 
 #[instrument(level = "debug", skip(state))]
 pub async fn add_to_calendar<'a, 'b>(
-    Path(term): Path<String>,
+    Path(term): Path<Term>,
     State(state): State<Arc<DatabaseAppState>>,
-    Extension(user_state): CookieUserState,
+    selected_courses: SelectedCourses,
     Form(Search { course }): Form<Search>,
 ) -> Result<impl IntoResponse, AppError> {
-    // get queried term
-    let term: scraper::Term = term.parse().map_err(|err| {
-        debug!(?err);
-        StatusCode::BAD_REQUEST
-    })?;
-
     // no-op if course is already in state
-    if user_state.selection.iter().any(|c| c.0 == course) {
+    if selected_courses.courses.keys().any(|c| *c == course) {
         return Ok((CookieJar::new(), html!()));
     }
 
@@ -47,10 +39,10 @@ pub async fn add_to_calendar<'a, 'b>(
     debug!(?default_sections);
 
     let jar = CookieJar::new().add({
-        let mut user_state = user_state.clone();
-        user_state.selection.push((course, default_sections));
+        let mut user_state = selected_courses.clone();
+        user_state.courses.insert(course, default_sections);
 
-        Cookie::from(user_state)
+        user_state.make_cookie(term)
     });
 
     Ok((
@@ -64,7 +56,7 @@ pub async fn add_to_calendar<'a, 'b>(
 
 #[instrument(level = "debug", skip(_state))]
 pub async fn rm_from_calendar(
-    user_state: CookieUserState,
+    _selected_courses: SelectedCourses,
     State(_state): State<Arc<DatabaseAppState>>,
     Json(course_crn): Json<Search>,
 ) -> Markup {

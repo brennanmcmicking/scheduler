@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::{cmp::Ordering, fmt::Display, str::FromStr};
 
 use anyhow::{anyhow, bail, Context, Result};
@@ -109,6 +109,16 @@ impl FromStr for Term {
     }
 }
 
+impl<'de> Deserialize<'de> for Term {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        s.parse().map_err(serde::de::Error::custom)
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Days {
     pub monday: bool,
@@ -165,8 +175,35 @@ pub struct ThinSection {
     pub crn: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ThinCourse {
     pub subject_code: String,
     pub course_code: String,
+}
+
+// required for use as a map key
+impl<'de> Deserialize<'de> for ThinCourse {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let (subject_code, course_code) = s
+            .split_once(' ')
+            .ok_or_else(|| serde::de::Error::custom("should contain one space"))?;
+        Ok(Self {
+            subject_code: subject_code.to_string(),
+            course_code: course_code.to_string(),
+        })
+    }
+}
+
+// required for use as a map key
+impl Serialize for ThinCourse {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        format!("{} {}", self.subject_code, self.course_code).serialize(serializer)
+    }
 }

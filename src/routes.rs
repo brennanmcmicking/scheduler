@@ -20,10 +20,7 @@ use tower_http::{
 };
 use tracing::{debug_span, error};
 
-use crate::{
-    middlewares,
-    scraper::{Term, ThinCourse, ThinSection},
-};
+use crate::scraper::{Term, ThinCourse, ThinSection};
 
 mod calendar;
 mod root;
@@ -202,17 +199,17 @@ pub async fn make_app() -> Router {
         .nest_service("/assets", ServeDir::new("assets"))
         // `GET /` goes to `root`
         .route("/", get(root::root))
-        .route("/term/:id", get(term::term))
-        .route("/term/:id/search", post(search::search))
-        .route(
-            "/term/:id/calendar",
-            put(calendar::add_to_calendar).delete(calendar::rm_from_calendar),
+        .nest(
+            "/term/:term",
+            Router::new()
+                .route("/", get(term::term))
+                .route("/search", post(search::search))
+                .route(
+                    "/calendar",
+                    put(calendar::add_to_calendar).delete(calendar::rm_from_calendar),
+                ),
         )
         .with_state(state)
-        .route_layer(
-            tower::ServiceBuilder::new()
-                .layer(axum::middleware::from_fn(middlewares::parse_cookie)),
-        )
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(|request: &Request<_>| {
