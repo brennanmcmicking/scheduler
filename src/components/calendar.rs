@@ -178,9 +178,9 @@ pub fn render(sections: &Vec<Section>) -> Markup {
         waitlist_capacity: 10,
         meeting_times: vec![MeetingTime {
             start_date: "2024-01-01".parse().unwrap(),
-            start_time: Some("11:30:00".parse().unwrap()),
+            start_time: Some("16:30:00".parse().unwrap()),
             end_date: "2024-04-30".parse().unwrap(),
-            end_time: Some("12:20:00".parse().unwrap()),
+            end_time: Some("17:20:00".parse().unwrap()),
             days: Days {
                 monday: false,
                 tuesday: true,
@@ -213,7 +213,7 @@ pub fn render(sections: &Vec<Section>) -> Markup {
             None => 7,
             Some(x) => x.hour(),
         }) {
-        None => 24,
+        None => 23,
         Some(x) => x.end_time.unwrap_or("23:00:00".parse().unwrap()).hour(),
     };
     debug!(earliest, latest);
@@ -248,9 +248,9 @@ pub fn render(sections: &Vec<Section>) -> Markup {
                 div class="relative flex flex-col grow gap-0.5 lg:gap-1" {
                     @for time in &timeslots {
                         @if &time.floor() != time {
-                            div class="text-[calc(1vh)] lg:text-sm h-auto grow bg-neutral-700 px-1 flex justify-center items-center hidden lg:block" { (time_to_string(*time)) }
+                            div class="text-[calc(1vh)] lg:text-sm h-auto grow bg-neutral-700 px-1 hidden lg:flex justify-center" { (time_to_string(*time)) }
                         } @else {
-                            div class="text-[calc(1vh)] lg:text-sm h-auto grow bg-neutral-700 px-1 flex justify-center items-center" { (time_to_string(*time)) }
+                            div class="text-[calc(1vh)] lg:text-sm h-auto grow bg-neutral-700 px-1 flex justify-center" { (time_to_string(*time)) }
                         }
                     }
                 }
