@@ -56,9 +56,39 @@ pub async fn add_to_calendar<'a, 'b>(
 
 #[instrument(level = "debug", skip(_state))]
 pub async fn rm_from_calendar(
-    _selected_courses: SelectedCourses,
+    Path(term): Path<Term>,
     State(_state): State<Arc<DatabaseAppState>>,
-    Json(course_crn): Json<Search>,
-) -> Markup {
-    todo!()
+    selected_courses: SelectedCourses,
+    Form(Search { course }): Form<Search>,
+) -> Result<impl IntoResponse, AppError> {
+    // no-op if course is not in cookie
+    if !selected_courses.courses.keys().any(|c| *c == course) {
+        return Ok((CookieJar::new(), html!()));
+    }
+
+    let jar = CookieJar::new().add({
+        let mut user_state = SelectedCourses {
+            courses: BTreeMap::new(),
+        };
+
+        selected_courses
+            .courses
+            .iter()
+            .filter(|&(thin_course, _)| thin_course.course_code != course.course_code)
+            .for_each(|(course, section)| {
+                user_state
+                    .courses
+                    .insert(course.to_owned(), section.to_owned());
+            });
+
+        user_state.make_cookie(term)
+    });
+
+    Ok((
+        jar,
+        html! {
+            (calendar_view_container(true))
+            (courses_container(true))
+        },
+    ))
 }
