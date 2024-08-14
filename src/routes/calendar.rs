@@ -4,14 +4,14 @@ use crate::{
     scraper::{Term, ThinCourse},
 };
 use axum::{
-    extract::{Json, Path, State},
+    extract::{Path, State},
     response::IntoResponse,
     Form,
 };
 use axum_extra::extract::CookieJar;
-use maud::{html, Markup};
+use maud::html;
 use serde::Deserialize;
-use std::{ops::DerefMut, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 use tracing::{debug, instrument};
 
 use super::{AppError, DatabaseAppState};
