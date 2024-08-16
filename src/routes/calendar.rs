@@ -67,19 +67,10 @@ pub async fn rm_from_calendar(
     }
 
     let jar = CookieJar::new().add({
-        let mut user_state = SelectedCourses {
-            courses: BTreeMap::new(),
-        };
-
-        selected_courses
+        let mut user_state = selected_courses;
+        user_state
             .courses
-            .iter()
-            .filter(|&(thin_course, _)| thin_course.course_code != course.course_code)
-            .for_each(|(course, section)| {
-                user_state
-                    .courses
-                    .insert(course.to_owned(), section.to_owned());
-            });
+            .retain(|thin_course, _| thin_course.course_code != course.course_code);
 
         user_state.make_cookie(term)
     });
