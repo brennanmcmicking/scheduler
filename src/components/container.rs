@@ -34,7 +34,7 @@ pub fn calendar_container(
     }
 }
 
-pub fn calendar_view_container(oob: bool, sections: &Vec<Section>) -> Markup {
+pub fn calendar_view_container(oob: bool, sections: &Vec<&Section>) -> Markup {
     html! {
         div id="calendar-view-container" hx-swap-oob=[if oob {Some("true")} else {None}] class="w-full h-1/2 lg:h-full" {
             div class="w-full h-full lg:p-1 flex justify-center items-center bg-white dark:bg-neutral-800 dark:text-white lg:rounded-lg shadow-xl" {
