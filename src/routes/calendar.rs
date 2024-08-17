@@ -1,7 +1,6 @@
 use crate::{
-    components::container::{calendar_view_container, courses_container},
     middlewares::SelectedCourses,
-    scraper::{Term, ThinCourse},
+    scraper::{Term, ThinCourse, ThinSection},
 };
 use axum::{
     extract::{Path, State},
@@ -9,9 +8,9 @@ use axum::{
     Form,
 };
 use axum_extra::extract::CookieJar;
-use maud::html;
+use maud::{html, Markup};
 use serde::Deserialize;
-use std::{sync::Arc};
+use std::sync::Arc;
 use tracing::{debug, instrument};
 
 use super::{AppError, DatabaseAppState};
@@ -38,20 +37,11 @@ pub async fn add_to_calendar<'a, 'b>(
 
     debug!(?default_sections);
 
-    let jar = CookieJar::new().add({
-        let mut user_state = selected_courses.clone();
-        user_state.courses.insert(course, default_sections);
+    let mut user_state = selected_courses.clone();
+    user_state.courses.insert(course, default_sections);
+    let jar = CookieJar::new().add(user_state.make_cookie(term));
 
-        user_state.make_cookie(term)
-    });
-
-    Ok((
-        jar,
-        html! {
-            (calendar_view_container(true))
-            (courses_container(true))
-        },
-    ))
+    Ok((jar, render_selected_courses(&user_state)))
 }
 
 #[instrument(level = "debug", skip(_state))]
@@ -78,8 +68,37 @@ pub async fn rm_from_calendar(
     Ok((
         jar,
         html! {
-            (calendar_view_container(true))
-            (courses_container(true))
+            "Hello world"
         },
     ))
+}
+
+/// some components
+fn render_selected_courses(selection: &SelectedCourses) -> Markup {
+    let courses = &selection.courses;
+    html! {
+        ul {
+            @for (course, selected_sections) in courses {
+                @let title = format!("{} {}", course.subject_code, course.course_code);
+                div class="flex items-center" {
+                    input type="checkbox" {}
+                    span class="text-lg" {(title)}
+                    button { "Remove" }
+                }
+                li { (section_card(&selected_sections)) }
+            }
+        }
+    }
+}
+
+fn section_card(sections: &Vec<ThinSection>) -> Markup {
+    html! {
+        ul {
+            @for s in sections {
+                li {
+                    (s.crn)
+                }
+            }
+        }
+    }
 }
