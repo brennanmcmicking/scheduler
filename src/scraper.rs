@@ -133,43 +133,43 @@ pub struct Days {
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Day {
-    MONDAY,
-    TUESDAY,
-    WEDNESDAY,
-    THURSDAY,
-    FRIDAY,
-    SATURDAY,
-    SUNDAY,
+    Monday,
+    Tuesday,
+    Wednesday,
+    Thursday,
+    Friday,
+    Saturday,
+    Sunday,
 }
 
 impl Day {
     pub const ALL: [Self; 7] = [
-        Self::MONDAY,
-        Self::TUESDAY,
-        Self::WEDNESDAY,
-        Self::THURSDAY,
-        Self::FRIDAY,
-        Self::SATURDAY,
-        Self::SUNDAY,
+        Self::Monday,
+        Self::Tuesday,
+        Self::Wednesday,
+        Self::Thursday,
+        Self::Friday,
+        Self::Saturday,
+        Self::Sunday,
     ];
 
     pub const WEEKDAYS: [Self; 5] = [
-        Self::MONDAY,
-        Self::TUESDAY,
-        Self::WEDNESDAY,
-        Self::THURSDAY,
-        Self::FRIDAY,
+        Self::Monday,
+        Self::Tuesday,
+        Self::Wednesday,
+        Self::Thursday,
+        Self::Friday,
     ];
 
     pub(crate) fn is_in_days(&self, days: Days) -> bool {
         match self {
-            Day::MONDAY => days.monday,
-            Day::TUESDAY => days.tuesday,
-            Day::WEDNESDAY => days.wednesday,
-            Day::THURSDAY => days.thursday,
-            Day::FRIDAY => days.friday,
-            Day::SATURDAY => days.saturday,
-            Day::SUNDAY => days.sunday,
+            Day::Monday => days.monday,
+            Day::Tuesday => days.tuesday,
+            Day::Wednesday => days.wednesday,
+            Day::Thursday => days.thursday,
+            Day::Friday => days.friday,
+            Day::Saturday => days.saturday,
+            Day::Sunday => days.sunday,
         }
     }
 }
