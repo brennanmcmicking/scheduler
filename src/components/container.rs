@@ -22,6 +22,8 @@ pub fn calendar_container(term: Term, courses: &Vec<ThinCourse>) -> Markup {
                         (components::search_result::render(term, courses))
                     }
                 }
+
+                // RIGHT PANEL
                 (courses_container(false))
             }
         }
@@ -40,10 +42,17 @@ pub fn calendar_view_container(oob: bool) -> Markup {
 
 pub fn courses_container(oob: bool) -> Markup {
     html! {
-        div id="courses-container" hx-swap-oob=[if oob {Some("true")} else {None}] class="flex flex-col gap-2 h-full shrink-0 grow basis-1/2 lg:basis-1/5" {
-            div id="courses-card" class="rounded-lg h-full bg-white dark:bg-neutral-800 flex justify-center items-center p-1 dark:text-white" {
-                "selected courses"
-            }
+        section
+            id="courses-container"
+            hx-swap-oob=[if oob {Some("true")} else {None}]
+            class="flex flex-col justify-center items-stretch gap-1 h-full shrink-0 grow basis-1/2 lg:basis-1/5" {
+                h2 class="text-center text-xl text-white py-3 rounded-lg bg-white dark:bg-neutral-800" {
+                    "Selected courses"
+                }
+                div id="courses-card" class="rounded-lg h-full bg-white dark:bg-neutral-800 flex flex-col justify-start items-stretch p-1 dark:text-white" {
+                    // TODO: need to fetch all of the courses in user state cookie
+                    // on initial rendering
+                }
         }
     }
 }
