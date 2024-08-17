@@ -54,10 +54,10 @@ fn render_day(day: Day, timeslots: &Vec<Time>, sections: &Vec<&Section>) -> Mark
     debug!(?day, ?sections);
     html!(
         div class="flex-1 flex flex-col" {
-            div class="text-[calc(1vh)] lg:text-sm shrink flex justify-center items-center" { (day.to_string().to_lowercase()) }
+            div class="text-[calc(1.5vh)] lg:text-sm shrink flex justify-center items-center" { (day.to_string().to_lowercase()) }
             div class="relative flex flex-col grow gap-0.5 lg:gap-1" {
                 @for _ in timeslots {
-                    div class="h-auto grow bg-neutral-600" {  }
+                    div class="h-auto grow bg-neutral-100 dark:bg-neutral-600" {  }
                 }
                 @for section in sections {
                     (render_section_cards(earliest, latest, &section, day))
@@ -77,7 +77,7 @@ pub fn render(sections: &Vec<&Section>) -> Markup {
         .iter()
         .flat_map(|mt| mt.start_time)
         .min()
-        .unwrap_or(jiff::civil::time(9, 0, 0, 0));
+        .unwrap_or(jiff::civil::time(8, 30, 0, 0));
 
     let latest = meeting_times
         .iter()
@@ -102,14 +102,15 @@ pub fn render(sections: &Vec<&Section>) -> Markup {
     html!(
         div id="calendar" class="w-full h-full overflow-y-scroll flex gap-0.5 lg:gap-1" {
             div class="flex flex-col shrink" {
-                div class="text-[calc(1vh)] lg:text-sm shrink flex justify-center items-center" { "time" }
+                div class="text-[calc(1.5vh)] lg:text-sm shrink flex justify-center items-center" { "time" }
                 div class="relative flex flex-col grow gap-0.5 lg:gap-1" {
-                    @for time in &timeslots {
-                        @if time.minute() != 0 {
-                            div class="text-[calc(1vh)] lg:text-sm h-auto grow bg-neutral-700 px-1 hidden lg:flex justify-center" { (time) }
-                        } @else {
-                            div class="text-[calc(1vh)] lg:text-sm h-auto grow bg-neutral-700 px-1 flex justify-center" { (time) }
-                        }
+                    @for (i, time) in timeslots.iter().enumerate() {
+                        @let display = if i % 2 != 0 {
+                            "hidden lg:flex"
+                        } else {
+                            "flex"
+                        };
+                        div class={"text-[calc(1.5vh)] lg:text-sm h-auto grow bg-neutral-200 dark:bg-neutral-700 px-1 " (display) " justify-center"} { (time) }
                     }
                 }
             }
