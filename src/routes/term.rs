@@ -1,4 +1,4 @@
-use crate::scraper::Term;
+use crate::{middlewares::SelectedCourses, scraper::Term};
 use axum::extract::{Path, State};
 use maud::{html, Markup};
 use std::sync::Arc;
@@ -12,11 +12,13 @@ use super::{AppError, DatabaseAppState};
 pub async fn term(
     Path(term): Path<Term>,
     State(state): State<Arc<DatabaseAppState>>,
+    selected: SelectedCourses,
 ) -> Result<Markup, AppError> {
     debug!("term");
-    let courses = state.courses(term)?;
+    let search_courses = state.thin_courses(term)?;
+    let courses = state.courses(term, &selected.thin_courses())?;
 
     Ok(components::base(html! {
-        (components::container::calendar_container(term, &courses))
+        (components::container::calendar_container(term, &search_courses, &courses, &selected))
     }))
 }

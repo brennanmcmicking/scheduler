@@ -20,7 +20,7 @@ use tower_http::{
 };
 use tracing::{debug_span, error};
 
-use crate::scraper::{Term, ThinCourse, ThinSection};
+use crate::scraper::{Course, Days, MeetingTime, Section, Term, ThinCourse, ThinSection};
 
 mod calendar;
 mod root;
@@ -69,7 +69,90 @@ impl DatabaseAppState {
         terms
     }
 
-    fn courses(&self, term: Term) -> Result<Vec<ThinCourse>> {
+    fn courses(&self, term: Term, keys: &[&ThinCourse]) -> Result<Vec<Course>> {
+        let Some(conn) = self.get_conn(&term) else {
+            return Ok(Vec::new());
+        };
+
+        let courses = keys.iter().map(|&ThinCourse {subject_code, course_code}| {
+            conn.query_row_and_then("
+                    SELECT title, campus
+                    FROM course
+                    WHERE subject_code = ?1 AND course_code = ?2
+                ",
+                (subject_code, course_code), |row| {
+                    // no N+1 problem when it's in memory
+                    let sections = conn.prepare("
+                            SELECT crn, sequence_code, enrollment, enrollment_capacity, waitlist, waitlist_capacity
+                            FROM section
+                            WHERE subject_code = ?1 AND course_code = ?2
+                        ")?
+                        .query_and_then((subject_code, course_code), |row| {
+                            let crn = row.get("crn")?;
+
+                            let meeting_times = conn.prepare("
+                                SELECT
+                                    start_time, end_time, start_date, end_date,
+                                    monday, tuesday, wednesday, thursday, friday, saturday, sunday,
+                                    building, room
+                                FROM meeting_time
+                                WHERE crn = ?1
+                                ")?
+                                .query_and_then((crn,), |row| {
+                                    let start_time: Option<String> = row.get("start_time")?;
+                                    let end_time: Option<String> = row.get("end_time")?;
+
+                                    let start_date: String = row.get("start_date")?;
+                                    let end_date: String = row.get("end_date")?;
+
+                                    Ok(MeetingTime {
+                                        start_time: start_time.map(|s| s.parse()).transpose()?,
+                                        end_time: end_time.map(|s| s.parse()).transpose()?,
+                                        start_date: start_date.parse()?,
+                                        end_date: end_date.parse()?,
+
+                                        days: Days {
+                                            monday: row.get("monday")?,
+                                            tuesday: row.get("tuesday")?,
+                                            wednesday: row.get("wednesday")?,
+                                            thursday: row.get("thursday")?,
+                                            friday: row.get("friday")?,
+                                            saturday: row.get("saturday")?,
+                                            sunday: row.get("sunday")?,
+                                        },
+
+                                        building: row.get("building")?,
+                                        room: row.get("room")?,
+                                    })
+                                })?.collect::<Result<Vec<_>>>()?;
+
+                            Ok(Section {
+                                crn,
+                                subject_code: subject_code.clone(),
+                                course_code: course_code.clone(),
+                                sequence_code: row.get("sequence_code")?,
+                                enrollment: row.get("enrollment")?,
+                                enrollment_capacity: row.get("enrollment_capacity")?,
+                                waitlist: row.get("waitlist")?,
+                                waitlist_capacity: row.get("waitlist_capacity")?,
+                                meeting_times,
+                            })
+                    })?.collect::<Result<Vec<_>>>()?;
+
+                    Ok(Course {
+                       subject_code: subject_code.clone(),
+                       course_code: course_code.clone(),
+                       title: row.get("title")?,
+                       campus: row.get("campus")?,
+                       sections,
+                    })
+                })
+            }).collect::<Result<Vec<_>>>()?;
+
+        Ok(courses)
+    }
+
+    fn thin_courses(&self, term: Term) -> Result<Vec<ThinCourse>> {
         let Some(conn) = self.get_conn(&term) else {
             return Ok(Vec::new());
         };

@@ -2,7 +2,7 @@ use maud::{html, Markup};
 
 use crate::scraper::{Term, ThinCourse};
 
-pub fn render(term: Term, courses: &Vec<ThinCourse>) -> Markup {
+pub fn render(term: Term, courses: &[ThinCourse]) -> Markup {
     html! {
         div {
             @for course in courses {

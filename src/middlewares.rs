@@ -17,6 +17,10 @@ pub struct SelectedCourses {
 }
 
 impl SelectedCourses {
+    pub fn thin_courses(&self) -> Vec<&ThinCourse> {
+        self.courses.keys().collect()
+    }
+
     fn cookie_name(term: Term) -> String {
         format!("selected_courses_{}", term)
     }
