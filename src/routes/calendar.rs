@@ -4,14 +4,13 @@ use crate::{
     scraper::{Term, ThinCourse},
 };
 use axum::{
-    extract::{Path, State},
+    extract::{Form, Path, Query, State},
     response::IntoResponse,
-    Form,
 };
 use axum_extra::extract::CookieJar;
 use maud::html;
 use serde::Deserialize;
-use std::{sync::Arc};
+use std::sync::Arc;
 use tracing::{debug, instrument};
 
 use super::{AppError, DatabaseAppState};
@@ -25,11 +24,11 @@ pub struct Search {
 pub async fn add_to_calendar<'a, 'b>(
     Path(term): Path<Term>,
     State(state): State<Arc<DatabaseAppState>>,
-    selected_courses: SelectedCourses,
+    selected: SelectedCourses,
     Form(Search { course }): Form<Search>,
 ) -> Result<impl IntoResponse, AppError> {
     // no-op if course is already in state
-    if selected_courses.courses.keys().any(|c| *c == course) {
+    if selected.courses.keys().any(|c| *c == course) {
         return Ok((CookieJar::new(), html!()));
     }
 
@@ -38,48 +37,48 @@ pub async fn add_to_calendar<'a, 'b>(
 
     debug!(?default_sections);
 
-    let jar = CookieJar::new().add({
-        let mut user_state = selected_courses.clone();
-        user_state.courses.insert(course, default_sections);
+    let mut new_selected = selected.clone();
+    new_selected.courses.insert(course, default_sections);
 
-        user_state.make_cookie(term)
-    });
+    let jar = CookieJar::new().add(new_selected.make_cookie(term));
+
+    let courses = state.courses(term, &new_selected.thin_courses())?;
 
     Ok((
         jar,
         html! {
             (calendar_view_container(true))
-            (courses_container(true))
+            (courses_container(true, term, &courses, &new_selected))
         },
     ))
 }
 
-#[instrument(level = "debug", skip(_state))]
+#[instrument(level = "debug", skip(state))]
 pub async fn rm_from_calendar(
     Path(term): Path<Term>,
-    State(_state): State<Arc<DatabaseAppState>>,
-    selected_courses: SelectedCourses,
-    Form(Search { course }): Form<Search>,
+    State(state): State<Arc<DatabaseAppState>>,
+    selected: SelectedCourses,
+    Query(Search { course }): Query<Search>,
 ) -> Result<impl IntoResponse, AppError> {
     // no-op if course is not in cookie
-    if !selected_courses.courses.keys().any(|c| *c == course) {
+    if !selected.courses.keys().any(|c| *c == course) {
         return Ok((CookieJar::new(), html!()));
     }
 
-    let jar = CookieJar::new().add({
-        let mut user_state = selected_courses;
-        user_state
-            .courses
-            .retain(|thin_course, _| thin_course.course_code != course.course_code);
+    let mut new_selected = selected.clone();
+    new_selected
+        .courses
+        .retain(|thin_course, _| thin_course.course_code != course.course_code);
 
-        user_state.make_cookie(term)
-    });
+    let jar = CookieJar::new().add(new_selected.make_cookie(term));
+
+    let courses = state.courses(term, &new_selected.thin_courses())?;
 
     Ok((
         jar,
         html! {
             (calendar_view_container(true))
-            (courses_container(true))
+            (courses_container(true, term, &courses, &new_selected))
         },
     ))
 }
