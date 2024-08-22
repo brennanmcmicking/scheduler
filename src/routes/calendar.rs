@@ -1,7 +1,7 @@
 use crate::{
     components::container::{calendar_view_container, courses_container},
     middlewares::SelectedCourses,
-    scraper::{Term, ThinCourse},
+    scraper::{Course, Term, ThinCourse},
 };
 use axum::{
     extract::{Form, Path, Query, State},
@@ -27,28 +27,30 @@ pub async fn add_to_calendar<'a, 'b>(
     selected: SelectedCourses,
     Form(Search { course }): Form<Search>,
 ) -> Result<impl IntoResponse, AppError> {
-    // no-op if course is already in state
-    if selected.courses.keys().any(|c| *c == course) {
-        return Ok((CookieJar::new(), html!()));
-    }
+    let course_exists = selected.courses.keys().any(|c| *c == course);
 
-    // query db
-    let default_sections = state.default_thin_sections(&term, course.clone())?;
+    let (jar, selected) = if course_exists {
+        // no-op if course is already in state
+        (CookieJar::new(), selected)
+    } else {
+        let default_sections = state.default_thin_sections(&term, course.clone())?;
 
-    debug!(?default_sections);
+        let mut new_selected = selected.clone();
+        new_selected.courses.insert(course, default_sections);
 
-    let mut new_selected = selected.clone();
-    new_selected.courses.insert(course, default_sections);
+        (
+            CookieJar::new().add(selected.make_cookie(term)),
+            new_selected,
+        )
+    };
 
-    let jar = CookieJar::new().add(new_selected.make_cookie(term));
-
-    let courses = state.courses(term, &new_selected.thin_courses())?;
+    let courses = state.courses(term, &selected.thin_courses())?;
 
     Ok((
         jar,
         html! {
             (calendar_view_container(true))
-            (courses_container(true, term, &courses, &new_selected))
+            (courses_container(true, term, &courses, &selected))
         },
     ))
 }
@@ -62,7 +64,15 @@ pub async fn rm_from_calendar(
 ) -> Result<impl IntoResponse, AppError> {
     // no-op if course is not in cookie
     if !selected.courses.keys().any(|c| *c == course) {
-        return Ok((CookieJar::new(), html!()));
+        let courses = state.courses(term, &selected.thin_courses())?;
+
+        return Ok((
+            CookieJar::new(),
+            html! {
+                (calendar_view_container(true))
+                (courses_container(true, term, &courses, &selected))
+            },
+        ));
     }
 
     let mut new_selected = selected.clone();

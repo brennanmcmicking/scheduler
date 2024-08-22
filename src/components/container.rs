@@ -1,7 +1,7 @@
 use maud::{html, Markup};
 
 use crate::{
-    components,
+    components::{self, section_view::section_card},
     middlewares::SelectedCourses,
     scraper::{Course, Term, ThinCourse},
 };
@@ -48,22 +48,40 @@ pub fn courses_container(
     oob: bool,
     term: Term,
     courses: &[Course],
-    _selected: &SelectedCourses,
+    selected: &SelectedCourses,
 ) -> Markup {
+    dbg!(courses);
     // TODO: add selected section list view
     // TODO: add selected section selection endpoints (i.e PUT /term/:term/calendar/section crn=1)
     html! {
-        div id="courses-container" hx-swap-oob=[if oob {Some("true")} else {None}] class="flex flex-col gap-2 h-full shrink-0 grow basis-1/2 lg:basis-1/5" {
-            @for course in courses {
-                div id="courses-card" class="rounded-lg h-full bg-white dark:bg-neutral-800 flex justify-center items-center p-1 dark:text-white" {
-                    (&course.subject_code) " " (&course.course_code) " - " (&course.title)
-                    form {
-                        input type="hidden" name="subject_code" value=(course.subject_code){}
-                        input type="hidden" name="course_code" value=(course.course_code){}
-                        button name="course" value={(course.subject_code) " " (course.course_code)}
-                        class="bg-red-500 dark:bg-red-600 hover:bg-red-700 hover:dark:bg-red-800 text-black dark:text-white rounded-lg h-full p-1 my-1 text-xl shadow-lg"
-                        hx-delete={"/term/" (term) "/calendar"} hx-swap="none" {
-                            "Remove"
+        section class="h-full overflow-y-hidden shrink-0 grow basis-1/2 lg:basis-1/5 bg-white dark:bg-neutral-800 p-2" {
+            h2 class="text-black dark:text-white text-center text-xl font-semibold my-3" {
+                "Selected Courses"
+            }
+
+            div id="courses-container" hx-swap-oob=[if oob {Some("true")} else {None}]
+                class="flex flex-col gap-2 h-full overflow-y-scroll" {
+                @for course in courses {
+                    div id="courses-card" class="rounded-lg flex-col justify-center items-center p-1 dark:text-white border border-black dark:border-white" {
+                        details class="py-3" {
+                            summary class="flex cursor-pointer" {
+                                div class="flex gap-2 justify-between items-center" {
+                                    h3 {
+                                        (&course.subject_code) " " (&course.course_code) " - " (&course.title)
+                                    }
+                                    form {
+                                        input type="hidden" name="subject_code" value=(course.subject_code){}
+                                        input type="hidden" name="course_code" value=(course.course_code){}
+                                        button name="course" value={(course.subject_code) " " (course.course_code)}
+                                        class="bg-red-500 dark:bg-red-600 hover:bg-red-700 hover:dark:bg-red-800 text-black dark:text-white rounded-md p-1 shadow-lg"
+                                        hx-delete={"/term/" (term) "/calendar"} hx-swap="none" {
+                                            "remove"
+                                        }
+                                    }
+                                }
+                            }
+
+                            (section_card(course, selected))
                         }
                     }
                 }
