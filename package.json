@@ -1,0 +1,9 @@
+{
+    "scripts": {
+        "tw": "npx tailwindcss -i ./src/styles.css -o ./assets/styles.css --watch"
+    },
+    "devDependencies": {
+        "daisyui": "^4.12.10",
+        "tailwindcss": "^3.4.10"
+    }
+}
