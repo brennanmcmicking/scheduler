@@ -5,6 +5,15 @@
 Scheduler is the re-implementation of [CourseUp](https://github.com/VikeLabs/courseup),
 but in ✨Rust✨ 🦀🦀🦀 which mean's it's blazingly🔥🔥🔥 fast🚀🚀🚀
 
+## Getting started
+
+
+
+```sh
+npm i # install dependencies from Node, (TailwindCSS, Daisy UI)
+npm run tw:watch # starts the "compiler"
+```
+
 ## References
 
 [New UI mockup (mobile-first)](https://excalidraw.com/#json=Gy2QfYj48tbT_JeTS-Lju,s66OheueOnmxZdSqZ1CQsw)
