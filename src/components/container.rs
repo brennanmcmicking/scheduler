@@ -50,8 +50,6 @@ pub fn courses_container(
     courses: &[Course],
     selected: &SelectedCourses,
 ) -> Markup {
-    dbg!(courses);
-    // TODO: add selected section list view
     // TODO: add selected section selection endpoints (i.e PUT /term/:term/calendar/section crn=1)
     html! {
         section class="h-full overflow-y-hidden shrink-0 grow basis-1/2 lg:basis-1/5 bg-white dark:bg-neutral-800 p-2" {
@@ -81,7 +79,7 @@ pub fn courses_container(
                                 }
                             }
 
-                            (section_card(course, selected))
+                            (section_card(course, selected, &term))
                         }
                     }
                 }
