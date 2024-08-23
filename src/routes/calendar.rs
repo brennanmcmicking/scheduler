@@ -1,7 +1,7 @@
 use crate::{
     components::container::{calendar_view_container, courses_container},
     middlewares::SelectedCourses,
-    scraper::{Term, ThinCourse},
+    scraper::{Term, ThinCourse, ThinSection},
 };
 use axum::{
     extract::{Form, Path, Query, RawForm, State},
@@ -96,7 +96,7 @@ pub async fn rm_from_calendar(
 // HANDLER FOR COURSE SECTIONS
 // because Axum doesn't support duplicated fields in form data...
 #[derive(Debug, PartialEq)]
-struct SectionQuery(ThinCourse, Vec<u64>);
+struct SectionQuery(ThinCourse, Vec<ThinSection>);
 
 impl TryFrom<&RawForm> for SectionQuery {
     type Error = anyhow::Error;
@@ -138,10 +138,10 @@ impl TryFrom<&RawForm> for SectionQuery {
             Err(anyhow::anyhow!("`subject_code` not found"))
         }?;
 
-        let mut crn: Vec<u64> = Vec::new();
+        let mut thin_sections: Vec<ThinSection> = Vec::new();
         if let Some(c) = query_map.get("crns") {
             for code in c.iter() {
-                crn.push(code.parse()?);
+                thin_sections.push(ThinSection { crn: code.parse()? });
             }
         }
 
@@ -150,7 +150,7 @@ impl TryFrom<&RawForm> for SectionQuery {
                 course_code,
                 subject_code,
             },
-            crn,
+            thin_sections,
         ))
     }
 }
@@ -158,13 +158,12 @@ impl TryFrom<&RawForm> for SectionQuery {
 #[instrument(level = "debug")]
 pub async fn course_section(
     Path(term): Path<Term>,
-    selected: SelectedCourses,
+    mut selected: SelectedCourses,
     formdata: RawForm,
 ) -> Result<impl IntoResponse, AppError> {
-    dbg!(&formdata);
-    let sections = SectionQuery::try_from(&formdata)?;
-    dbg!(&sections);
-    Ok(())
+    let section = SectionQuery::try_from(&formdata)?;
+    selected.courses.insert(section.0, section.1);
+    Ok(CookieJar::new().add(selected.make_cookie(term)))
 }
 
 #[cfg(test)]
@@ -183,7 +182,7 @@ mod tests {
                 course_code: "355".to_string(),
                 subject_code: "CSC".to_string(),
             },
-            vec![10795, 10796],
+            vec![ThinSection { crn: 10795 }, ThinSection { crn: 10796 }],
         );
 
         let result = SectionQuery::try_from(&rawform).unwrap();
@@ -199,7 +198,7 @@ mod tests {
                 course_code: "355".to_string(),
                 subject_code: "CSC".to_string(),
             },
-            vec![10795],
+            vec![ThinSection { crn: 10795 }],
         );
 
         let result = SectionQuery::try_from(&rawform).unwrap();

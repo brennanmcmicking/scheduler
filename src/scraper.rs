@@ -170,7 +170,7 @@ pub struct Course {
     pub sections: Vec<Section>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ThinSection {
     pub crn: u64,
 }
