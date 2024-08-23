@@ -19,6 +19,8 @@ jobs:
         run: cargo clippy --all-targets --all-features
       - name: Build
         run: cargo build --release --all-features
+      - name: Test
+        run: cargo test
   docker-build:
     name: Build scheduler app docker image
     runs-on: ubuntu-latest
