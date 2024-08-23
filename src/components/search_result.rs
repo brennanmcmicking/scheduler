@@ -7,18 +7,19 @@ pub fn render(term: Term, courses: &Vec<ThinCourse>) -> Markup {
         div {
             @for course in courses {
                 @let course_name = format!("{} {}", course.subject_code, course.course_code);
-                form class="flex border-b dark:border-neutral-400 justify-between items-center mb-0" {
+                form class="flex justify-between items-center my-3" {
                     div class="text-xl dark:text-white" {
                         (course_name)
                     }
                     input type="hidden" name="course_code" value=(course.course_code){}
                     input type="hidden" name="subject_code" value=(course.subject_code){}
                     button name="course" value=(course_name)
-                    class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 text-black dark:text-white rounded-lg h-full p-1 my-1 text-xl shadow-lg"
+                    class="btn btn-sm btn-primary"
                     hx-put={"/term/" (term) "/calendar"} hx-swap="none" {
                         "add"
                     }
                 }
+                hr class="w-full my-3 last:hidden";
             }
         }
     }
