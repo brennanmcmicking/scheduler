@@ -35,3 +35,4 @@ regex = "1.10.5"
 r2d2 = "0.8.10"
 r2d2_sqlite = "0.25.0"
 itertools = "0.13.0"
+url = { version = "2.5.2", features = ["default"] }

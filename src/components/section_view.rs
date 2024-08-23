@@ -40,7 +40,7 @@ pub fn section_card(course: &Course, selected: &SelectedCourses, term: &Term) ->
 
                                 label class="cursor-pointer flex gap-2 justify-start items-center" {
 
-                                    @let url = format!("/term/{}/section", term.to_string());
+                                    @let url = format!("/term/{}/section", term);
                                     (checkbox(url.as_str(), section.crn, checked))
 
                                     "Section: " (&section.sequence_code)
