@@ -11,7 +11,7 @@ pub fn base(content: Markup) -> Markup {
             head {
                 title {"scheduler"}
                 script src="/assets/htmx.min.js" {}
-                script src="/assets/tailwind.js" {}
+                link rel="stylesheet" type="text/css" href="/assets/styles.css";
                 meta name="viewport" content="width=device-width,initial-scale=1.0" {}
             }
             body class="bg-slate-100 dark:bg-neutral-900" {
