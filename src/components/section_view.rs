@@ -20,7 +20,7 @@ pub fn section_card(course: &Course, selected: &SelectedCourses, term: &Term) ->
         .collect::<Vec<_>>();
 
     html! {
-        form {
+        form class="px-3" {
             input type="hidden" name="course_code" value=(&course.course_code);
 
             input type="hidden" name="subject_code" value=(&course.subject_code);
@@ -32,7 +32,7 @@ pub fn section_card(course: &Course, selected: &SelectedCourses, term: &Term) ->
 
                     li class="flex flex-col text-white" {
 
-                        hr class="my-3"{}
+                        hr class="my-3 w-full"{}
 
                         div class="px-3 flex flex-col gap-3 items-start justify-center" {
 
@@ -121,27 +121,20 @@ fn meeting_time(meeting_time: &[MeetingTime]) -> Markup {
         day_str.push('F');
     }
 
-    let start_time = if let Some(time) = &meeting_time.start_time {
-        time.strftime("%I:%M %p").to_string()
+    let time = if meeting_time.start_time.is_some() && meeting_time.end_time.is_some() {
+        let pattern = "%I:%M %p"; // formats to 03:00 PM
+        let start = &meeting_time.start_time.unwrap().strftime(pattern);
+        let end = &meeting_time.end_time.unwrap().strftime(pattern);
+        format!("{} - {}", start, end)
     } else {
-        "N/A".to_string()
-    };
-
-    let end_time = if let Some(time) = &meeting_time.end_time {
-        time.strftime("%I:%M %p").to_string()
-    } else {
-        "N/A".to_string()
+        String::from("N/A")
     };
 
     html! {
-        div class="flex justify-between items-center text-sm gap-5 w-full"{
-            span {
-                "Day: "(day_str)
-            }
+        div class="flex justify-between items-center text-sm gap-2 w-full"{
+            span { "Day: "(day_str) }
 
-            span {
-                (start_time) " - " (end_time)
-            }
+            span { (time) }
         }
     }
 }
