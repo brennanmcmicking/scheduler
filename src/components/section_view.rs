@@ -2,10 +2,10 @@ use maud::{html, Markup};
 
 use crate::{
     middlewares::SelectedCourses,
-    scraper::{Course, MeetingTime, ThinCourse},
+    scraper::{Course, MeetingTime, Term, ThinCourse},
 };
 
-pub fn section_card(course: &Course, selected: &SelectedCourses) -> Markup {
+pub fn section_card(course: &Course, selected: &SelectedCourses, term: &Term) -> Markup {
     let thin_course = ThinCourse {
         subject_code: course.subject_code.to_owned(),
         course_code: course.course_code.to_owned(),
@@ -20,28 +20,52 @@ pub fn section_card(course: &Course, selected: &SelectedCourses) -> Markup {
         .collect::<Vec<_>>();
 
     html! {
-        ul class="flex flex-col gap-3" {
-            @for section in &course.sections {
-                @let checked = selected_crns.iter().any(|&c| c == section.crn);
+        form {
+            input type="hidden" name="course_code" value=(&course.course_code);
 
-                li class="flex flex-col text-white" {
+            input type="hidden" name="subject_code" value=(&course.subject_code);
 
-                    hr class="my-3"{}
+            ul class="flex flex-col gap-3" {
 
-                    div class="px-3 flex flex-col gap-3 items-start justify-center" {
-                        form class="flex gap-3 justify-start items-center"{
-                            label class="cursor-pointer flex gap-2 justify-start items-center" {
-                                (check_box(section.sequence_code.as_str(), section.sequence_code.as_str(), checked))
-                                "Section: " (section.sequence_code)
+                @for section in &course.sections {
+                    @let checked = selected_crns.iter().any(|&c| c == section.crn);
+
+                    li class="flex flex-col text-white" {
+
+                        hr class="my-3"{}
+
+                        div class="px-3 flex flex-col gap-3 items-start justify-center" {
+
+                            div class="flex gap-3 justify-start items-center"{
+
+                                label class="cursor-pointer flex gap-2 justify-start items-center" {
+
+                                    @let url = format!("/term/{}/section", term.to_string());
+                                    (checkbox(url.as_str(), section.crn, checked))
+
+                                    "Section: " (&section.sequence_code)
+                                }
+
+                            }
+
+                            h4 class="" {
+                                "CRN: "(section.crn)
+                            }
+
+                            (meeting_time(&section.meeting_times))
+
+                            div class="flex justify-between items-center w-full" {
+
+                                span class="text-sm" {
+                                    "Seats: " (section.enrollment)"/"(section.enrollment_capacity)
+                                }
+
+                                span class="text-sm" {
+                                    "Waitlist: " (section.waitlist)"/"(section.waitlist_capacity)
+                                }
+
                             }
                         }
-
-                        h4 class="" {
-                            "CRN: "(section.crn)
-                        }
-
-                        (meeting_time(&section.meeting_times))
-                        (seats(section.enrollment, section.enrollment_capacity, section.waitlist, section.waitlist_capacity))
                     }
                 }
             }
@@ -49,33 +73,23 @@ pub fn section_card(course: &Course, selected: &SelectedCourses) -> Markup {
     }
 }
 
-fn check_box(name: &str, value: &str, checked: bool) -> Markup {
+fn checkbox(url: &str, crn: u64, checked: bool) -> Markup {
+    // bc I can't figure out how to inline the `checked` html
+    // attribute properly :(
     match checked {
         true => html! {
             input type="checkbox"
-                name=(name)
-                value=(value)
+                hx-put=(url)
+                name="crns"
+                value=(crn)
                 checked;
         },
         false => html! {
             input type="checkbox"
-                value=(value)
-                name=(name);
+                hx-put=(url)
+                name="crns"
+                value=(crn);
         },
-    }
-}
-
-fn seats(enrolled: u32, enrolled_cap: u32, waitlisted: u32, waitlisted_cap: u32) -> Markup {
-    html! {
-        div class="flex justify-between items-center w-full" {
-            span class="text-sm" {
-                "Seats: " (enrolled)"/"(enrolled_cap)
-            }
-
-            span class="text-sm" {
-                "Waitlist: " (waitlisted)"/"(waitlisted_cap)
-            }
-        }
     }
 }
 
