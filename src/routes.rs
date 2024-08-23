@@ -290,6 +290,10 @@ pub async fn make_app() -> Router {
                 .route(
                     "/calendar",
                     put(calendar::add_to_calendar).delete(calendar::rm_from_calendar),
+                )
+                .route(
+                    "/section",
+                    put(calendar::course_section),
                 ),
         )
         .with_state(state)
