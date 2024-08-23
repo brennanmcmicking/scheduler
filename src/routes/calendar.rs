@@ -1,7 +1,7 @@
 use crate::{
     components::container::{calendar_view_container, courses_container},
     middlewares::SelectedCourses,
-    scraper::{Course, Term, ThinCourse},
+    scraper::{Term, ThinCourse},
 };
 use axum::{
     extract::{Form, Path, Query, State},
@@ -11,7 +11,7 @@ use axum_extra::extract::CookieJar;
 use maud::html;
 use serde::Deserialize;
 use std::sync::Arc;
-use tracing::{debug, instrument};
+use tracing::instrument;
 
 use super::{AppError, DatabaseAppState};
 
@@ -39,7 +39,7 @@ pub async fn add_to_calendar<'a, 'b>(
         new_selected.courses.insert(course, default_sections);
 
         (
-            CookieJar::new().add(selected.make_cookie(term)),
+            CookieJar::new().add(new_selected.make_cookie(term)),
             new_selected,
         )
     };
