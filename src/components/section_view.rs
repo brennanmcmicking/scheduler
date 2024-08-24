@@ -1,11 +1,34 @@
+use jiff::civil::Time;
 use maud::{html, Markup};
+use tracing::error;
 
 use crate::{
     middlewares::SelectedCourses,
-    scraper::{Course, MeetingTime, Term, ThinCourse},
+    scraper::{Course, Days, MeetingTime, Section, Term, ThinCourse},
 };
 
 pub fn section_card(course: &Course, selected: &SelectedCourses, term: &Term) -> Markup {
+    let mut lectures: Vec<&Section> = Vec::new();
+    let mut labs: Vec<&Section> = Vec::new();
+    let mut tutorials: Vec<&Section> = Vec::new();
+
+    for section in course.sections.iter() {
+        let sqn = &section.sequence_code;
+
+        if sqn.starts_with('A') {
+            lectures.push(section);
+        } else if sqn.starts_with('B') {
+            labs.push(section);
+        } else if sqn.starts_with('T') {
+            tutorials.push(section);
+        } else {
+            error!(
+                "unhandled section type: {}\ndropping section {:?}",
+                sqn, section
+            );
+        }
+    }
+
     let thin_course = ThinCourse {
         subject_code: course.subject_code.to_owned(),
         course_code: course.course_code.to_owned(),
@@ -19,50 +42,65 @@ pub fn section_card(course: &Course, selected: &SelectedCourses, term: &Term) ->
         .map(|s| s.crn)
         .collect::<Vec<_>>();
 
+    let url = format!("/term/{}/section", term);
+
     html! {
         form class="px-3" {
             input type="hidden" name="course" value=(format!("{} {}",&course.subject_code, &course.course_code));
 
-            ul class="flex flex-col gap-3" {
+            (section( "lectures",&url, &lectures, &selected_crns))
+            (section( "labs",&url, &labs, &selected_crns))
+            (section( "tutorials",&url, &tutorials, &selected_crns))
 
-                @for section in &course.sections {
-                    @let checked = selected_crns.iter().any(|&c| c == section.crn);
+        }
+    }
+}
 
-                    li class="flex flex-col text-white" {
+fn section(
+    section_type: &str,
+    put_url: &String,
+    sections: &Vec<&Section>,
+    selected_crns: &[u64],
+) -> Markup {
+    html! {
+        ul class="flex flex-col gap-3" {
 
-                        hr class="my-3 w-full"{}
+            @for section in sections {
+                @let checked = selected_crns.iter().any(|&c| c == section.crn);
 
-                        div class="px-3 flex flex-col gap-3 items-start justify-center" {
+                li class="flex flex-col text-white" {
 
-                            div class="flex gap-3 justify-start items-center"{
+                    hr class="my-3 w-full"{}
 
-                                label class="cursor-pointer flex gap-2 justify-start items-center" {
+                    div class="px-3 flex flex-col gap-3 items-start justify-center" {
 
-                                    @let url = format!("/term/{}/section", term);
-                                    (checkbox(url.as_str(), section.crn, checked))
+                        div class="flex gap-3 justify-start items-center"{
 
-                                    "Section: " (&section.sequence_code)
-                                }
+                            label class="cursor-pointer flex gap-2 justify-start items-center" {
 
+                                (checkbox(&put_url, section_type,section.crn, checked))
+
+                                "Section: " (&section.sequence_code)
                             }
 
-                            h4 class="" {
-                                "CRN: "(section.crn)
+                        }
+
+                        h4 class="" {
+                            "CRN: "(section.crn)
+                        }
+
+                        (meeting_times(&section.meeting_times))
+
+                        div class="flex justify-between items-center w-full" {
+
+                            span class="text-sm" {
+                                "Seats: " (section.enrollment)"/"(section.enrollment_capacity)
                             }
 
-                            (meeting_time(&section.meeting_times))
-
-                            div class="flex justify-between items-center w-full" {
-
-                                span class="text-sm" {
-                                    "Seats: " (section.enrollment)"/"(section.enrollment_capacity)
-                                }
-
-                                span class="text-sm" {
-                                    "Waitlist: " (section.waitlist)"/"(section.waitlist_capacity)
-                                }
-
+                            span class="text-sm" {
+                                "Waitlist: " (section.waitlist)"/"(section.waitlist_capacity)
                             }
+
                         }
                     }
                 }
@@ -71,33 +109,51 @@ pub fn section_card(course: &Course, selected: &SelectedCourses, term: &Term) ->
     }
 }
 
-fn checkbox(url: &str, crn: u64, checked: bool) -> Markup {
+fn checkbox(url: &String, name: &str, crn: u64, checked: bool) -> Markup {
     // bc I can't figure out how to inline the `checked` html
     // attribute properly :(
     match checked {
         true => html! {
-            input type="checkbox"
+            input type="radio"
                 hx-put=(url)
-                name="crns"
+                name=(name)
                 value=(crn)
                 checked;
         },
         false => html! {
-            input type="checkbox"
+            input type="radio"
                 hx-put=(url)
-                name="crns"
+                name=(name)
                 value=(crn);
         },
     }
 }
 
-fn meeting_time(meeting_time: &[MeetingTime]) -> Markup {
-    // I'm not sure why this meeting time has to be a vec
-    let meeting_time = &meeting_time[0];
+fn meeting_times(meeting_times: &[MeetingTime]) -> Markup {
+    html! {
+        @if !meeting_times.is_empty() {
 
-    let days = &meeting_time.days;
+            ul class="flex flex-col w-full justify-start items-center" {
 
-    let mut day_str = String::new();
+                @for meeting_time in meeting_times.iter() {
+                    li class="flex justify-between items-center text-sm gap-2 w-full" {
+                        span { "Days: "(format_days(&meeting_time.days)) }
+                        span { (format_time(&meeting_time.start_time, &meeting_time.end_time)) }
+                    }
+                }
+
+            }
+
+        } @else {
+            span { "Days: N/A" }
+            span { "N/A" }
+        }
+
+    }
+}
+
+fn format_days(days: &Days) -> String {
+    let mut day_str = String::with_capacity(6); // at most "MTWThF"
 
     if days.monday {
         day_str.push('M');
@@ -119,20 +175,22 @@ fn meeting_time(meeting_time: &[MeetingTime]) -> Markup {
         day_str.push('F');
     }
 
-    let time = if meeting_time.start_time.is_some() && meeting_time.end_time.is_some() {
-        let pattern = "%I:%M %p"; // formats to 03:00 PM
-        let start = &meeting_time.start_time.unwrap().strftime(pattern);
-        let end = &meeting_time.end_time.unwrap().strftime(pattern);
+    if day_str.is_empty() {
+        String::from("N/A")
+    } else {
+        day_str
+    }
+}
+
+fn format_time(start_time: &Option<Time>, end_time: &Option<Time>) -> String {
+    if start_time.is_some() && end_time.is_some() {
+        let pattern = "%I:%M %p"; // formats time to `03:00 PM`
+
+        let start = &start_time.unwrap().strftime(pattern);
+        let end = &end_time.unwrap().strftime(pattern);
+
         format!("{} - {}", start, end)
     } else {
         String::from("N/A")
-    };
-
-    html! {
-        div class="flex justify-between items-center text-sm gap-2 w-full"{
-            span { "Day: "(day_str) }
-
-            span { (time) }
-        }
     }
 }
