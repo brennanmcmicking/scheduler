@@ -4,10 +4,10 @@ use crate::{
     scraper::{Term, ThinCourse, ThinSection},
 };
 use axum::{
-    extract::{Form, Path, Query, RawForm, State},
+    extract::{Form, Path, Query, State},
     response::IntoResponse,
 };
-use axum_extra::extract::CookieJar;
+use axum_extra::extract::{CookieJar, Form as ExtractedForm};
 use maud::html;
 use serde::Deserialize;
 use std::sync::Arc;
@@ -94,115 +94,26 @@ pub async fn rm_from_calendar(
 }
 
 // HANDLER FOR COURSE SECTIONS
-// because Axum doesn't support duplicated fields in form data...
-#[derive(Debug, PartialEq)]
-struct SectionQuery(ThinCourse, Vec<ThinSection>);
+#[derive(Debug, PartialEq, Deserialize)]
+pub struct SectionQuery {
+    course: ThinCourse,
 
-impl TryFrom<&RawForm> for SectionQuery {
-    type Error = anyhow::Error;
-
-    fn try_from(form: &RawForm) -> Result<Self, Self::Error> {
-        use std::collections::HashMap;
-
-        let parsed_form = url::form_urlencoded::parse(&form.0);
-        let mut query_map: HashMap<String, Vec<String>> = HashMap::new();
-
-        for (key, val) in parsed_form {
-            match query_map.get_mut(key.as_ref()) {
-                None => {
-                    query_map.insert(key.to_string(), vec![val.to_string()]);
-                }
-                Some(entry) => {
-                    entry.push(val.to_string());
-                }
-            };
-        }
-
-        let course_code = if let Some(c) = query_map.get("course_code") {
-            if c.len() != 1 {
-                Err(anyhow::anyhow!("duplicates found for `course_code`"))
-            } else {
-                Ok(c[0].to_string())
-            }
-        } else {
-            Err(anyhow::anyhow!("`course_code` not found"))
-        }?;
-
-        let subject_code = if let Some(c) = query_map.get("subject_code") {
-            if c.len() != 1 {
-                Err(anyhow::anyhow!("duplicates found for `subject_code`"))
-            } else {
-                Ok(c[0].to_string())
-            }
-        } else {
-            Err(anyhow::anyhow!("`subject_code` not found"))
-        }?;
-
-        let mut thin_sections: Vec<ThinSection> = Vec::new();
-        if let Some(c) = query_map.get("crns") {
-            for code in c.iter() {
-                thin_sections.push(ThinSection { crn: code.parse()? });
-            }
-        }
-
-        Ok(Self(
-            ThinCourse {
-                course_code,
-                subject_code,
-            },
-            thin_sections,
-        ))
-    }
+    #[serde(default)] // if no box checked, field does not exist
+    crns: Vec<u64>,
 }
 
 #[instrument(level = "debug")]
 pub async fn course_section(
     Path(term): Path<Term>,
     mut selected: SelectedCourses,
-    formdata: RawForm,
+    ExtractedForm(form): ExtractedForm<SectionQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let section = SectionQuery::try_from(&formdata)?;
-    selected.courses.insert(section.0, section.1);
+    let sections = form
+        .crns
+        .iter()
+        .map(|&crn| ThinSection { crn })
+        .collect::<Vec<_>>();
+
+    selected.courses.insert(form.course, sections);
     Ok(CookieJar::new().add(selected.make_cookie(term)))
-}
-
-#[cfg(test)]
-mod tests {
-    use axum::body::Bytes;
-
-    use super::*;
-
-    #[test]
-    fn section_query_form_deserialization() {
-        let bytes = b"course_code=355&subject_code=CSC&crns=10795&crns=10796";
-        let rawform = RawForm(Bytes::copy_from_slice(bytes));
-
-        let expected = SectionQuery(
-            ThinCourse {
-                course_code: "355".to_string(),
-                subject_code: "CSC".to_string(),
-            },
-            vec![ThinSection { crn: 10795 }, ThinSection { crn: 10796 }],
-        );
-
-        let result = SectionQuery::try_from(&rawform).unwrap();
-
-        assert_eq!(expected, result);
-
-        // with 1 crn only
-        let bytes = b"course_code=355&subject_code=CSC&crns=10795";
-        let rawform = RawForm(Bytes::copy_from_slice(bytes));
-
-        let expected = SectionQuery(
-            ThinCourse {
-                course_code: "355".to_string(),
-                subject_code: "CSC".to_string(),
-            },
-            vec![ThinSection { crn: 10795 }],
-        );
-
-        let result = SectionQuery::try_from(&rawform).unwrap();
-
-        assert_eq!(expected, result);
-    }
 }

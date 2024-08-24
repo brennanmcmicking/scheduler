@@ -21,9 +21,7 @@ pub fn section_card(course: &Course, selected: &SelectedCourses, term: &Term) ->
 
     html! {
         form class="px-3" {
-            input type="hidden" name="course_code" value=(&course.course_code);
-
-            input type="hidden" name="subject_code" value=(&course.subject_code);
+            input type="hidden" name="course" value=(format!("{} {}",&course.subject_code, &course.course_code));
 
             ul class="flex flex-col gap-3" {
 
