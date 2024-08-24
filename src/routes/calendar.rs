@@ -103,7 +103,7 @@ pub struct SectionQuery {
 }
 
 #[instrument(level = "debug")]
-pub async fn course_section(
+pub async fn course_section_handler(
     Path(term): Path<Term>,
     mut selected: SelectedCourses,
     ExtractedForm(form): ExtractedForm<SectionQuery>,
