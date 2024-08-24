@@ -16,7 +16,7 @@ path = "src/bin/scraper.rs"
 [dependencies]
 anyhow = "1.0.86"
 axum = { version = "0.7.5", features = ["default", "tokio"] }
-axum-extra = { version = "0.9.3", features = ["cookie"] }
+axum-extra = { version = "0.9.3", features = ["cookie", "form"] }
 clap = { version = "4.5.9", features = ["derive"] }
 futures = "0.3.30"
 jiff = "0.1.1"
