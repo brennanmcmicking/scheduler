@@ -145,8 +145,10 @@ fn meeting_times(meeting_times: &[MeetingTime]) -> Markup {
             }
 
         } @else {
-            span { "Days: N/A" }
-            span { "N/A" }
+            div class="flex justify-between items-center text-sm gap-2 w-full" {
+                span { "Days: N/A" }
+                span { "N/A" }
+            }
         }
 
     }
