@@ -293,7 +293,7 @@ pub async fn make_app() -> Router {
                 )
                 .route(
                     "/section",
-                    put(calendar::course_section),
+                    put(calendar::course_section_handler),
                 ),
         )
         .with_state(state)
