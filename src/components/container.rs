@@ -34,7 +34,7 @@ pub fn calendar_container(
     }
 }
 
-pub fn calendar_view_container(oob: bool, sections: &Vec<&Section>) -> Markup {
+pub fn calendar_view_container(oob: bool, sections: &Vec<Section>) -> Markup {
     html! {
         div id="calendar-view-container" hx-swap-oob=[if oob {Some("true")} else {None}] class="w-full h-1/2 lg:h-full" {
             div class="w-full h-full lg:p-1 flex justify-center items-center bg-white dark:bg-neutral-800 dark:text-white lg:rounded-lg shadow-xl" {
@@ -114,14 +114,14 @@ fn small_section_card(
     crn: u64,
     selected: bool,
 ) -> Markup {
-    let border_color = match selected {
-        true => "border-blue-800",
-        false => "border-green-800",
+    let color = match selected {
+        true => "bg-blue-800",
+        false => "bg-green-800",
     };
     html!(
         form hx-patch={"/term/" (term) "/calendar" } hx-swap="none" class="mb-0" {
             input name="course" value=(format!("{} {}", subject_code, course_code)) hidden {}
-            button class={(border_color) " border-2 bg-green-800 p-2 rounded-lg w-full"} name="crn" value=(crn) {
+            button class={(color) " p-2 rounded-lg w-full"} name="crn" value=(crn) {
                 (sequence_code)
             }
         }

@@ -22,7 +22,7 @@ fn render_section_cards(earliest: &Time, latest: &Time, sec: &Section, day: Day)
                     @let tp = (st - earliest) / (latest - earliest) * 100.0;
                     @let bp = (latest - et) / (latest - earliest) * 100.0;
                     @let border = if sec.enrollment >= sec.enrollment_capacity {
-                        "border-2 border-red-800"
+                        "border-2 border-red-800 p-2"
                     } else {
                         "p-2"
                     };
@@ -48,7 +48,7 @@ fn render_section_cards(earliest: &Time, latest: &Time, sec: &Section, day: Day)
     )
 }
 
-fn render_day(day: Day, timeslots: &Vec<Time>, sections: &Vec<&Section>) -> Markup {
+fn render_day(day: Day, timeslots: &Vec<Time>, sections: &Vec<Section>) -> Markup {
     let earliest = timeslots.first().unwrap();
     let latest = timeslots.last().unwrap();
     debug!(?day, ?sections);
@@ -67,7 +67,7 @@ fn render_day(day: Day, timeslots: &Vec<Time>, sections: &Vec<&Section>) -> Mark
     )
 }
 
-pub fn render(sections: &Vec<&Section>) -> Markup {
+pub fn render(sections: &Vec<Section>) -> Markup {
     debug!(?sections);
 
     let meeting_times: Vec<&MeetingTime> = sections.iter().flat_map(|s| &s.meeting_times).collect();
