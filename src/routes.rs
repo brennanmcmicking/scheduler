@@ -8,10 +8,9 @@ use axum::{
     routing::{get, post, put},
     Router,
 };
-use itertools::Itertools;
 use r2d2_sqlite::SqliteConnectionManager;
 use regex::bytes::Regex;
-use rusqlite::{Connection, OpenFlags};
+use rusqlite::{params, Connection, OpenFlags, Params};
 use tokio::fs;
 use tower_http::{
     services::ServeDir,
@@ -20,12 +19,21 @@ use tower_http::{
 };
 use tracing::{debug_span, error};
 
-use crate::scraper::{Course, Days, MeetingTime, Section, Term, ThinCourse, ThinSection};
+use crate::{
+    middlewares::Selection,
+    scraper::{Course, Days, MeetingTime, Section, Term, ThinCourse, ThinSection},
+};
 
 mod calendar;
 mod root;
 mod search;
 mod term;
+
+pub enum SectionType {
+    Lecture,
+    Lab,
+    Tutorial,
+}
 
 pub struct DatabaseAppState {
     terms: HashMap<Term, r2d2::Pool<SqliteConnectionManager>>,
@@ -199,13 +207,13 @@ impl DatabaseAppState {
         Ok(courses)
     }
 
-    fn default_thin_sections(&self, term: &Term, course: ThinCourse) -> Result<Vec<ThinSection>> {
+    fn default_thin_sections(&self, term: &Term, course: ThinCourse) -> Result<Selection> {
         let conn = self
             .get_conn(term)
             .context("failed to get conn from pool")?;
 
         let sections = conn.prepare(
-            "SELECT sequence_code, crn FROM section WHERE subject_code = ?1 AND course_code = ?2",
+            "SELECT sequence_code, crn FROM section WHERE subject_code = ?1 AND course_code = ?2 ORDER BY sequence_code",
         )
         .context("failed to prepare courses SQL statement")?
         .query_and_then((&course.subject_code, &course.course_code), |row| {
@@ -216,19 +224,66 @@ impl DatabaseAppState {
         .context("query failed")?
         .collect::<anyhow::Result<Vec<_>>>()?;
 
-        let default_sections = sections
-            .into_iter()
-            .chunk_by(|t| t.0.chars().nth(0))
-            .into_iter()
-            .map(|(_, chunk)| {
-                chunk
-                    .min_by_key(|(sequence_code, _)| sequence_code.clone())
-                    .expect("empty group in group_by")
-                    .1
-            })
-            .collect::<Vec<_>>();
+        let lecture = sections
+            .iter()
+            .filter(|s| s.0.starts_with("A"))
+            .map(|(_, ts)| ts.clone())
+            .collect::<Vec<_>>()
+            .first()
+            .cloned()
+            .unwrap_or_else(|| {
+                panic!(
+                    "Expected to find lecture section for course {} {}",
+                    &course.subject_code, &course.course_code
+                )
+            });
 
-        Ok(default_sections)
+        let lab = sections
+            .iter()
+            .filter(|s| s.0.starts_with("B"))
+            .map(|(_, ts)| ts.clone())
+            .collect::<Vec<_>>()
+            .first()
+            .cloned();
+
+        let tutorial = sections
+            .iter()
+            .filter(|s| s.0.starts_with("T"))
+            .map(|(_, ts)| ts.clone())
+            .collect::<Vec<_>>()
+            .first()
+            .cloned();
+
+        Ok(Selection {
+            lecture,
+            lab,
+            tutorial,
+        })
+    }
+
+    fn get_section_type(&self, term: &Term, section: &ThinSection) -> Result<SectionType> {
+        let db = self
+            .get_conn(term)
+            .context("failed to get conn from pool")?;
+
+        let raw_type = db
+            .prepare(
+                "SELECT sequence_code
+                FROM section
+                WHERE crn = :crn
+                LIMIT 1",
+            )?
+            .query_row(params![section.crn], |row| {
+                let sc: String = row.get("sequence_code")?;
+                Result::Ok(sc.chars().next().unwrap())
+            })?;
+
+        match raw_type {
+            'A' => Ok(SectionType::Lecture),
+            'B' => Ok(SectionType::Lab),
+            'T' => Ok(SectionType::Tutorial),
+            _ => unreachable!(),
+        }
     }
 
     pub fn get_conn(&self, term: &Term) -> Option<impl DerefMut<Target = Connection>> {
@@ -289,11 +344,9 @@ pub async fn make_app() -> Router {
                 .route("/search", post(search::search))
                 .route(
                     "/calendar",
-                    put(calendar::add_to_calendar).delete(calendar::rm_from_calendar),
-                )
-                .route(
-                    "/section",
-                    put(calendar::course_section_handler),
+                    put(calendar::add_to_calendar)
+                        .patch(calendar::update_calendar)
+                        .delete(calendar::rm_from_calendar),
                 ),
         )
         .with_state(state)

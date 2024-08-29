@@ -175,6 +175,14 @@ pub struct ThinSection {
     pub crn: u64,
 }
 
+impl From<String> for ThinSection {
+    fn from(value: String) -> Self {
+        ThinSection {
+            crn: u64::from_str(value.as_str()).unwrap(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ThinCourse {
     pub subject_code: String,

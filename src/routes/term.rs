@@ -14,7 +14,7 @@ pub async fn term(
     State(state): State<Arc<DatabaseAppState>>,
     selected: SelectedCourses,
 ) -> Result<Markup, AppError> {
-    debug!("term");
+    debug!("term endpoint called");
     let search_courses = state.thin_courses(term)?;
     let courses = state.courses(term, &selected.thin_courses())?;
 
