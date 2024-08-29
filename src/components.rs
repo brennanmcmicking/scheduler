@@ -4,7 +4,6 @@ pub mod button;
 pub mod calendar;
 pub mod container;
 pub mod search_result;
-pub mod section_view;
 
 pub fn base(content: Markup) -> Markup {
     html! {

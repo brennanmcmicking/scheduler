@@ -7,16 +7,16 @@ use axum::{
     extract::{Form, Path, Query, State},
     response::IntoResponse,
 };
-use axum_extra::extract::{CookieJar, Form as ExtractedForm};
+use axum_extra::extract::CookieJar;
 use maud::html;
 use serde::Deserialize;
 use std::sync::Arc;
 use tracing::instrument;
 
-use super::{AppError, DatabaseAppState};
+use super::{AppError, DatabaseAppState, SectionType};
 
 #[derive(Deserialize, Debug)]
-pub struct Search {
+pub struct Add {
     course: ThinCourse,
 }
 
@@ -25,7 +25,7 @@ pub async fn add_to_calendar<'a, 'b>(
     Path(term): Path<Term>,
     State(state): State<Arc<DatabaseAppState>>,
     selected: SelectedCourses,
-    Form(Search { course }): Form<Search>,
+    Form(Add { course }): Form<Add>,
 ) -> Result<impl IntoResponse, AppError> {
     let course_exists = selected.courses.keys().any(|c| *c == course);
 
@@ -55,12 +55,17 @@ pub async fn add_to_calendar<'a, 'b>(
     ))
 }
 
+#[derive(Deserialize, Debug)]
+pub struct Remove {
+    course: ThinCourse,
+}
+
 #[instrument(level = "debug", skip(state))]
 pub async fn rm_from_calendar(
     Path(term): Path<Term>,
     State(state): State<Arc<DatabaseAppState>>,
     selected: SelectedCourses,
-    Query(Search { course }): Query<Search>,
+    Query(Remove { course }): Query<Remove>,
 ) -> Result<impl IntoResponse, AppError> {
     // no-op if course is not in cookie
     if !selected.courses.keys().any(|c| *c == course) {
@@ -102,18 +107,39 @@ pub struct SectionQuery {
     crns: Vec<u64>,
 }
 
-#[instrument(level = "debug")]
-pub async fn course_section_handler(
-    Path(term): Path<Term>,
-    mut selected: SelectedCourses,
-    ExtractedForm(form): ExtractedForm<SectionQuery>,
-) -> Result<impl IntoResponse, AppError> {
-    let sections = form
-        .crns
-        .iter()
-        .map(|&crn| ThinSection { crn })
-        .collect::<Vec<_>>();
+#[derive(Deserialize, Debug)]
+pub struct Update {
+    course: ThinCourse,
+    crn: String,
+}
 
-    selected.courses.insert(form.course, sections);
-    Ok(CookieJar::new().add(selected.make_cookie(term)))
+#[instrument(level = "debug", skip(state))]
+pub async fn update_calendar(
+    Path(term): Path<Term>,
+    State(state): State<Arc<DatabaseAppState>>,
+    mut selected: SelectedCourses,
+    Form(Update { course, crn }): Form<Update>,
+) -> Result<impl IntoResponse, AppError> {
+    if selected.courses.keys().any(|c| *c == course) {
+        let section: ThinSection = crn.into();
+
+        let selection = selected.courses.get_mut(&course).unwrap();
+
+        let t = state.get_section_type(&term, &section)?;
+        match t {
+            SectionType::Lecture => selection.lecture = section,
+            SectionType::Lab => selection.lab = Some(section),
+            SectionType::Tutorial => selection.tutorial = Some(section),
+        }
+    }
+
+    let courses = state.courses(term, &selected.thin_courses())?;
+
+    Ok((
+        CookieJar::new().add(selected.make_cookie(term)),
+        html! {
+            (calendar_view_container(true))
+            (courses_container(true, term, &courses, &selected))
+        },
+    ))
 }

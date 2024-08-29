@@ -8,12 +8,34 @@ use axum::{
 use axum_extra::extract::{cookie::Cookie, CookieJar};
 use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 
 use crate::scraper::{Term, ThinCourse, ThinSection};
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Selection {
+    pub lecture: ThinSection,
+    pub lab: Option<ThinSection>,
+    pub tutorial: Option<ThinSection>,
+}
+
+impl Selection {
+    pub fn crns(&self) -> Vec<u64> {
+        [
+            Some(self.lecture.clone()),
+            self.lab.clone(),
+            self.tutorial.clone(),
+        ]
+        .iter()
+        .filter_map(Option::as_ref)
+        .map(|i| i.crn)
+        .collect()
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct SelectedCourses {
-    pub courses: BTreeMap<ThinCourse, Vec<ThinSection>>,
+    pub courses: BTreeMap<ThinCourse, Selection>,
 }
 
 impl SelectedCourses {
@@ -43,8 +65,10 @@ impl<'a> TryFrom<&Cookie<'a>> for SelectedCourses {
     type Error = anyhow::Error;
 
     fn try_from(cookie: &Cookie<'a>) -> Result<Self, Self::Error> {
+        debug!("trying to decode cookie");
         let cookie_base64 = cookie.value();
         let cookie_json = STANDARD_NO_PAD.decode(cookie_base64)?;
+        debug!("{}", str::from_utf8(&cookie_json).unwrap());
         let userstate = serde_json::from_slice(&cookie_json)?;
         Ok(userstate)
     }

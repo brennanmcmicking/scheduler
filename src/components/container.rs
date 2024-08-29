@@ -1,9 +1,10 @@
 use maud::{html, Markup};
+use tracing::debug;
 
 use crate::{
-    components::{self, section_view::section_card},
+    components,
     middlewares::SelectedCourses,
-    scraper::{Course, Term, ThinCourse},
+    scraper::{Course, Section, Term, ThinCourse},
 };
 
 pub fn calendar_container(
@@ -50,39 +51,80 @@ pub fn courses_container(
     courses: &[Course],
     selected: &SelectedCourses,
 ) -> Markup {
+    let selected: Vec<u64> = selected.courses.values().flat_map(|s| s.crns()).collect();
+    debug!(?selected);
     html! {
         section class="h-full overflow-y-hidden shrink-0 grow basis-1/2 lg:basis-1/5 bg-white dark:bg-neutral-800 p-2" {
-            h2 class="text-black dark:text-white text-center text-xl font-semibold my-3" {
-                "Selected Courses"
-            }
-
             div id="courses-container" hx-swap-oob=[if oob {Some("true")} else {None}]
                 class="flex flex-col gap-2 h-full overflow-y-scroll" {
                 @for course in courses {
-                    div id="courses-card" class="rounded-lg flex-col justify-center items-center p-1 dark:text-white border border-black dark:border-white" {
-                        details class="py-3" {
-                            summary class="flex cursor-pointer" {
-                                div class="flex gap-2 justify-between items-center" {
-                                    h3 {
-                                        (&course.subject_code) " " (&course.course_code) " - " (&course.title)
-                                    }
-                                    form {
-                                        input type="hidden" name="subject_code" value=(course.subject_code){}
-                                        input type="hidden" name="course_code" value=(course.course_code){}
-                                        button name="course" value={(course.subject_code) " " (course.course_code)}
-                                        class="bg-red-500 dark:bg-red-600 hover:bg-red-700 hover:dark:bg-red-800 text-black dark:text-white rounded-md p-1 shadow-lg"
-                                        hx-delete={"/term/" (term) "/calendar"} hx-swap="none" {
-                                            "remove"
-                                        }
-                                    }
+                    @let lectures: Vec<&Section> = course.sections.iter().filter(|s| s.sequence_code.starts_with("A")).collect();
+                    @let labs : Vec<&Section>= course.sections.iter().filter(|s| s.sequence_code.starts_with("B")).collect();
+                    @let tutorials: Vec<&Section> = course.sections.iter().filter(|s| s.sequence_code.starts_with("T")).collect();
+                    div id="courses-card" class="bg-neutral-200 dark:bg-neutral-700 rounded-lg flex-col justify-center items-center p-1 dark:text-white" {
+                        div class="w-full flex justify-between items-center overflow-hidden rounded-lg shadow" {
+                            div class="h-full grow text-xl dark:text-white dark:bg-neutral-600 p-1" {
+                                (&course.subject_code) " " (&course.course_code)
+                            }
+                            form class="mb-0" {
+                                button name="course" value={(course.subject_code) " " (course.course_code)}
+                                class="bg-red-500 dark:bg-red-600 hover:bg-red-700 hover:dark:bg-red-800 text-black dark:text-white h-full text-xl p-1"
+                                hx-delete={"/term/" (term) "/calendar"} hx-swap="none" {
+                                    "remove"
                                 }
                             }
+                        }
+                        h3 {
+                            (&course.title)
+                        }
 
-                            (section_card(course, selected, &term))
+                        @if !lectures.is_empty() {
+                            (sections(&term, lectures, &selected))
+                        }
+
+                        @if !labs.is_empty() {
+                            (sections(&term, labs, &selected))
+                        }
+
+                        @if !tutorials.is_empty() {
+                            (sections(&term, tutorials, &selected))
                         }
                     }
                 }
             }
         }
     }
+}
+
+fn sections(term: &Term, sections: Vec<&Section>, selected: &[u64]) -> Markup {
+    html!(
+        div class="grid grid-cols-5 gap-2 py-2 border-t" {
+            @for section in sections {
+                (small_section_card(term, &section.subject_code, &section.course_code, &section.sequence_code, section.crn, selected.contains(&section.crn)))
+            }
+        }
+
+    )
+}
+
+fn small_section_card(
+    term: &Term,
+    subject_code: &String,
+    course_code: &String,
+    sequence_code: &String,
+    crn: u64,
+    selected: bool,
+) -> Markup {
+    let border_color = match selected {
+        true => "border-blue-800",
+        false => "border-green-800",
+    };
+    html!(
+        form hx-patch={"/term/" (term) "/calendar" } hx-swap="none" class="mb-0" {
+            input name="course" value=(format!("{} {}", subject_code, course_code)) hidden {}
+            button class={(border_color) " border-2 bg-green-800 p-2 rounded-lg w-full"} name="crn" value=(crn) {
+                (sequence_code)
+            }
+        }
+    )
 }
