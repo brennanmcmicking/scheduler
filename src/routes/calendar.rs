@@ -112,8 +112,7 @@ pub struct SectionQuery {
 
 #[derive(Deserialize, Debug)]
 pub struct Update {
-    course: ThinCourse,
-    crn: String,
+    crn: u64,
 }
 
 #[instrument(level = "debug", skip(state))]
@@ -121,18 +120,23 @@ pub async fn update_calendar(
     Path(term): Path<Term>,
     State(state): State<Arc<DatabaseAppState>>,
     mut selected: SelectedCourses,
-    Form(Update { course, crn }): Form<Update>,
+    Form(Update { crn }): Form<Update>,
 ) -> Result<impl IntoResponse, AppError> {
-    if selected.courses.keys().any(|c| *c == course) {
-        let section: ThinSection = crn.into();
+    let thin_section = ThinSection { crn };
+    let section = state.get_section(&term, &thin_section)?;
+    let course = ThinCourse {
+        subject_code: section.subject_code.clone(),
+        course_code: section.course_code.clone(),
+    };
 
+    if selected.courses.keys().any(|c| *c == course) {
         let selection = selected.courses.get_mut(&course).unwrap();
 
-        let t = state.get_section_type(&term, &section)?;
-        match t {
-            SectionType::Lecture => selection.lecture = section,
-            SectionType::Lab => selection.lab = Some(section),
-            SectionType::Tutorial => selection.tutorial = Some(section),
+        let section_type: SectionType = section.sequence_code.into();
+        match section_type {
+            SectionType::Lecture => selection.lecture = thin_section,
+            SectionType::Lab => selection.lab = Some(thin_section),
+            SectionType::Tutorial => selection.tutorial = Some(thin_section),
         }
     }
 

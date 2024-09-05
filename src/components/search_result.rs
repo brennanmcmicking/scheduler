@@ -11,8 +11,6 @@ pub fn render(term: Term, courses: &[ThinCourse]) -> Markup {
                     div class="text-xl dark:text-white" {
                         (course_name)
                     }
-                    input type="hidden" name="course_code" value=(course.course_code){}
-                    input type="hidden" name="subject_code" value=(course.subject_code){}
                     button name="course" value=(course_name)
                     class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 transition text-black dark:text-white rounded-lg h-full p-1 my-1 text-xl shadow-lg"
                     hx-put={"/term/" (term) "/calendar"} hx-swap="none" {

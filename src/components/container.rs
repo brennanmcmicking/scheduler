@@ -99,28 +99,20 @@ fn sections(term: &Term, sections: Vec<&Section>, selected: &[u64]) -> Markup {
     html!(
         div class="grid grid-cols-5 gap-2 py-2 border-t" {
             @for section in sections {
-                (small_section_card(term, &section.subject_code, &section.course_code, &section.sequence_code, section.crn, selected.contains(&section.crn)))
+                (small_section_card(term, &section.sequence_code, section.crn, selected.contains(&section.crn)))
             }
         }
 
     )
 }
 
-fn small_section_card(
-    term: &Term,
-    subject_code: &String,
-    course_code: &String,
-    sequence_code: &String,
-    crn: u64,
-    selected: bool,
-) -> Markup {
+fn small_section_card(term: &Term, sequence_code: &String, crn: u64, selected: bool) -> Markup {
     let color = match selected {
         true => "bg-blue-800",
         false => "bg-green-800",
     };
     html!(
         form hx-patch={"/term/" (term) "/calendar" } hx-swap="none" class="mb-0" {
-            input name="course" value=(format!("{} {}", subject_code, course_code)) hidden {}
             button class={(color) " p-2 rounded-lg w-full"} name="crn" value=(crn) {
                 (sequence_code)
             }
