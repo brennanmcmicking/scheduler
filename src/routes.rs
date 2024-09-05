@@ -10,14 +10,14 @@ use axum::{
 };
 use r2d2_sqlite::SqliteConnectionManager;
 use regex::bytes::Regex;
-use rusqlite::{params, Connection, OpenFlags, Params};
+use rusqlite::{params, Connection, OpenFlags};
 use tokio::fs;
 use tower_http::{
     services::ServeDir,
     trace::{DefaultOnResponse, TraceLayer},
     LatencyUnit,
 };
-use tracing::{debug_span, error};
+use tracing::{debug, debug_span, error};
 
 use crate::{
     middlewares::{SelectedCourses, Selection},
@@ -35,7 +35,21 @@ pub enum SectionType {
     Tutorial,
 }
 
-pub fn selected_sections(courses: &Vec<Course>, selected: &SelectedCourses) -> Vec<Section> {
+impl From<String> for SectionType {
+    fn from(sequence_code: String) -> Self {
+        match sequence_code.get(0..1).unwrap() {
+            "A" => SectionType::Lecture,
+            "B" => SectionType::Lab,
+            "T" => SectionType::Tutorial,
+            unparsable_sequence_code => {
+                debug!(unparsable_sequence_code);
+                unreachable!()
+            }
+        }
+    }
+}
+
+pub fn selected_sections(courses: &[Course], selected: &SelectedCourses) -> Vec<Section> {
     let crns = selected.crns();
     courses
         .iter()
@@ -270,29 +284,80 @@ impl DatabaseAppState {
         })
     }
 
-    fn get_section_type(&self, term: &Term, section: &ThinSection) -> Result<SectionType> {
+    fn get_section(&self, term: &Term, section: &ThinSection) -> Result<Section> {
         let db = self
             .get_conn(term)
             .context("failed to get conn from pool")?;
 
-        let raw_type = db
+        let meeting_times = db
             .prepare(
-                "SELECT sequence_code
+                "
+            SELECT
+                start_time, end_time, start_date, end_date,
+                monday, tuesday, wednesday, thursday, friday, saturday, sunday,
+                building, room
+            FROM meeting_time
+            WHERE crn = ?1
+            ",
+            )?
+            .query_and_then((section.crn,), |row| {
+                let start_time: Option<String> = row.get("start_time")?;
+                let end_time: Option<String> = row.get("end_time")?;
+
+                let start_date: String = row.get("start_date")?;
+                let end_date: String = row.get("end_date")?;
+
+                Ok(MeetingTime {
+                    start_time: start_time.map(|s| s.parse()).transpose()?,
+                    end_time: end_time.map(|s| s.parse()).transpose()?,
+                    start_date: start_date.parse()?,
+                    end_date: end_date.parse()?,
+
+                    days: Days {
+                        monday: row.get("monday")?,
+                        tuesday: row.get("tuesday")?,
+                        wednesday: row.get("wednesday")?,
+                        thursday: row.get("thursday")?,
+                        friday: row.get("friday")?,
+                        saturday: row.get("saturday")?,
+                        sunday: row.get("sunday")?,
+                    },
+
+                    building: row.get("building")?,
+                    room: row.get("room")?,
+                })
+            })?
+            .collect::<Result<Vec<_>>>()?;
+
+        let result = db
+            .prepare(
+                "SELECT *
                 FROM section
                 WHERE crn = :crn
                 LIMIT 1",
             )?
             .query_row(params![section.crn], |row| {
-                let sc: String = row.get("sequence_code")?;
-                Result::Ok(sc.chars().next().unwrap())
+                let crn: u64 = row.get("crn")?;
+                let subject_code = row.get("subject_code")?;
+                let course_code = row.get("course_code")?;
+                let sequence_code = row.get("sequence_code")?;
+                let enrollment = row.get("enrollment")?;
+                let enrollment_capacity = row.get("enrollment_capacity")?;
+                let waitlist = row.get("waitlist")?;
+                let waitlist_capacity = row.get("waitlist_capacity")?;
+                Result::Ok(Section {
+                    crn,
+                    subject_code,
+                    course_code,
+                    sequence_code,
+                    enrollment,
+                    enrollment_capacity,
+                    waitlist,
+                    waitlist_capacity,
+                    meeting_times,
+                })
             })?;
-
-        match raw_type {
-            'A' => Ok(SectionType::Lecture),
-            'B' => Ok(SectionType::Lab),
-            'T' => Ok(SectionType::Tutorial),
-            _ => unreachable!(),
-        }
+        Ok(result)
     }
 
     pub fn get_conn(&self, term: &Term) -> Option<impl DerefMut<Target = Connection>> {
