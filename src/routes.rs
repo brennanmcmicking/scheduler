@@ -5,7 +5,7 @@ use anyhow::{Context, Ok, Result};
 use axum::{
     http::{Request, StatusCode},
     response::{IntoResponse, Response},
-    routing::{get, post, put},
+    routing::{delete, get, patch, post, put},
     Router,
 };
 use r2d2_sqlite::SqliteConnectionManager;
@@ -25,6 +25,7 @@ use crate::{
 };
 
 mod calendar;
+mod preview;
 mod root;
 mod search;
 mod term;
@@ -416,11 +417,14 @@ pub async fn make_app() -> Router {
             Router::new()
                 .route("/", get(term::term))
                 .route("/search", post(search::search))
-                .route(
+                .nest(
                     "/calendar",
-                    put(calendar::add_to_calendar)
-                        .patch(calendar::update_calendar)
-                        .delete(calendar::rm_from_calendar),
+                    Router::new()
+                        .route("/", get(calendar::get_calendar))
+                        .route("/", put(calendar::add_to_calendar))
+                        .route("/", patch(calendar::update_calendar))
+                        .route("/", delete(calendar::rm_from_calendar))
+                        .route("/preview", get(preview::preview)),
                 ),
         )
         .with_state(state)

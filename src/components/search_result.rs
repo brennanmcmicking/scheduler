@@ -12,7 +12,7 @@ pub fn render(term: Term, courses: &[ThinCourse]) -> Markup {
                         (course_name)
                     }
                     button name="course" value=(course_name)
-                    class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 transition text-black dark:text-white rounded-lg h-full p-1 my-1 text-xl shadow-lg"
+                    class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 transition text-black dark:text-white rounded-lg h-full p-1 my-1 text-xl"
                     hx-put={"/term/" (term) "/calendar"} hx-swap="none" {
                         "add"
                     }

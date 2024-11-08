@@ -11,10 +11,11 @@ pub fn base(content: Markup) -> Markup {
             head {
                 title {"scheduler"}
                 script src="/assets/htmx.min.js" {}
+                script src="/assets/multi-swap.js" {}
                 script src="/assets/tailwind.js" {}
                 meta name="viewport" content="width=device-width,initial-scale=1.0" {}
             }
-            body class="bg-slate-100 dark:bg-neutral-900" {
+            body hx-ext="multi-swap" class="bg-slate-100 dark:bg-neutral-900" {
                 div id="app-container" class="mx-auto w-full max-w-screen-2xl" {
                     (content)
                 }
