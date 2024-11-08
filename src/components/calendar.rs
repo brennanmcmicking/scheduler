@@ -4,7 +4,7 @@ use tracing::debug;
 
 use crate::scraper::{Day, MeetingTime, Section};
 
-fn render_section_cards(earliest: &Time, latest: &Time, sec: &Section, day: Day) -> Markup {
+fn render_section_cards(earliest: &Time, latest: &Time, sec: &Section, day: Day, preview: bool) -> Markup {
     let earliest = earliest.hour() as f32 + earliest.minute() as f32 / 60.0;
     let latest = latest.hour() as f32 + latest.minute() as f32 / 60.0 + 0.5;
     let meetings: Vec<&MeetingTime> = sec
@@ -12,6 +12,7 @@ fn render_section_cards(earliest: &Time, latest: &Time, sec: &Section, day: Day)
         .iter()
         .filter(|mt| day.is_in_days(mt.days))
         .collect();
+    let full = sec.enrollment >= sec.enrollment_capacity && sec.waitlist > 0;
     html!(
         @for m in meetings {
             @match m.start_time.zip(m.end_time) {
@@ -21,24 +22,25 @@ fn render_section_cards(earliest: &Time, latest: &Time, sec: &Section, day: Day)
                     @let et = et.hour() as f32 + et.minute() as f32 / 60.0;
                     @let tp = (st - earliest) / (latest - earliest) * 100.0;
                     @let bp = (latest - et) / (latest - earliest) * 100.0;
-                    @let border = if sec.enrollment >= sec.enrollment_capacity {
-                        "border-2 border-red-800 p-2"
+                    @let border = if full {
+                        " border-2 border-red-800"
                     } else {
-                        "p-2"
+                        ""
                     };
-                    div class={"absolute top-[calc(" (tp) "%)] bottom-[calc(" (bp) "%)] h-auto w-full"} {
-                        div class={"h-full w-full rounded-lg overflow-y-scroll text-xs lg:text-sm color-red bg-[hsl(" (sec.crn % 360) ",50%,25%)] flex flex-col box-sizing " (border)} {
-                            div {
-                                (sec.subject_code) " " (sec.course_code)
-                            }
-                            div {
-                                (sec.sequence_code)
-                            }
-                            div {
-                                (sec.enrollment) "/" (sec.enrollment_capacity) " (enrolment)"
-                            }
-                            div {
-                                (sec.waitlist) "/" (sec.waitlist_capacity) " (waitlist)"
+                    @let opacity = if preview {
+                        " opacity-50"
+                    } else {
+                        ""
+                    };
+                    div class={"absolute top-[calc(" (tp) "%)] bottom-[calc(" (bp) "%)] h-auto w-full" (opacity)} {
+                        div class={"h-full w-full rounded-lg overflow-y-scroll text-xs lg:text-sm color-red bg-[hsl(" ((sec.crn * 100) % 360) ",100%,25%)] flex flex-col box-sizing" (border)} {
+                            div class="flex justify-between flex-wrap bg-slate-800 px-1" {
+                                span class="text-xs" {
+                                    (sec.subject_code) " " (sec.course_code)
+                                }
+                                span class="hidden lg:block" {
+                                    (sec.sequence_code)
+                                }
                             }
                         }
                     }
@@ -48,7 +50,7 @@ fn render_section_cards(earliest: &Time, latest: &Time, sec: &Section, day: Day)
     )
 }
 
-fn render_day(day: Day, timeslots: &Vec<Time>, sections: &Vec<Section>) -> Markup {
+fn render_day(day: Day, timeslots: &Vec<Time>, sections: &Vec<Section>, preview_sections: &Vec<Section>) -> Markup {
     let earliest = timeslots.first().unwrap();
     let latest = timeslots.last().unwrap();
     debug!(?day, ?sections);
@@ -60,17 +62,22 @@ fn render_day(day: Day, timeslots: &Vec<Time>, sections: &Vec<Section>) -> Marku
                     div class="h-auto grow bg-neutral-100 dark:bg-neutral-600" {  }
                 }
                 @for section in sections {
-                    (render_section_cards(earliest, latest, &section, day))
+                    (render_section_cards(earliest, latest, &section, day, false))
+                }
+                @for section in preview_sections {
+                    (render_section_cards(earliest, latest, &section, day, true))
                 }
             }
         }
     )
 }
 
-pub fn render(sections: &Vec<Section>) -> Markup {
+pub fn render(sections: &Vec<Section>, preview_sections: &Vec<Section>) -> Markup {
     debug!(?sections);
 
-    let meeting_times: Vec<&MeetingTime> = sections.iter().flat_map(|s| &s.meeting_times).collect();
+    let meeting_times: Vec<&MeetingTime> = sections.iter().flat_map(|s| &s.meeting_times).chain(preview_sections.iter().flat_map(
+        |s| &s.meeting_times
+    )).collect();
     debug!(?meeting_times);
 
     let earliest: Time = meeting_times
@@ -110,15 +117,15 @@ pub fn render(sections: &Vec<Section>) -> Markup {
                         } else {
                             "flex"
                         };
-                        div class={"text-[calc(1.5vh)] lg:text-sm h-auto grow bg-neutral-200 dark:bg-neutral-700 px-1 " (display) " justify-center"} { (time) }
+                        div class={"text-[calc(1.5vh)] lg:text-sm h-auto grow bg-neutral-200 dark:bg-neutral-700 px-1 " (display) " justify-center"} { (time.strftime("%-I:%M%P")) }
                     }
                 }
             }
             @for d in &Day::WEEKDAYS {
-                (render_day(*d, &timeslots, sections))
+                (render_day(*d, &timeslots, sections, preview_sections))
             }
             @if saturday {
-                (render_day(Day::Saturday, &timeslots, sections))
+                (render_day(Day::Saturday, &timeslots, sections, preview_sections))
             }
         }
     )

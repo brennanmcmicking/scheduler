@@ -15,6 +15,20 @@ use tracing::instrument;
 
 use super::{selected_sections, AppError, DatabaseAppState, SectionType};
 
+#[instrument(level = "debug", skip(state))]
+pub async fn get_calendar(
+    Path(term): Path<Term>,
+    State(state): State<Arc<DatabaseAppState>>,
+    selected: SelectedCourses,
+) -> Result<impl IntoResponse, AppError> {
+    let courses = state.courses(term, &selected.thin_courses())?;
+    let sections = selected_sections(&courses, &selected);
+
+    Ok(html! {
+        (calendar_view_container(true, &sections, &vec![]))
+    })
+}
+
 #[derive(Deserialize, Debug)]
 pub struct Add {
     course: ThinCourse,
@@ -50,7 +64,7 @@ pub async fn add_to_calendar<'a, 'b>(
     Ok((
         jar,
         html! {
-            (calendar_view_container(true, &sections))
+            (calendar_view_container(true, &sections, &vec![]))
             (courses_container(true, term, &courses, &sections))
         },
     ))
@@ -76,7 +90,7 @@ pub async fn rm_from_calendar(
         return Ok((
             CookieJar::new(),
             html! {
-                (calendar_view_container(true, &sections))
+                (calendar_view_container(true, &sections, &vec![]))
                 (courses_container(true, term, &courses, &sections))
             },
         ));
@@ -95,7 +109,7 @@ pub async fn rm_from_calendar(
     Ok((
         jar,
         html! {
-            (calendar_view_container(true, &sections))
+            (calendar_view_container(true, &sections, &vec![]))
             (courses_container(true, term, &courses, &sections))
         },
     ))
@@ -146,7 +160,7 @@ pub async fn update_calendar(
     Ok((
         CookieJar::new().add(selected.make_cookie(term)),
         html! {
-            (calendar_view_container(true, &sections))
+            (calendar_view_container(true, &sections, &vec![]))
             (courses_container(true, term, &courses, &sections))
         },
     ))
