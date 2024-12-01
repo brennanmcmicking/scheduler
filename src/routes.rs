@@ -28,7 +28,7 @@ mod calendar;
 mod preview;
 mod root;
 mod search;
-mod term;
+mod schedule;
 
 pub enum SectionType {
     Lecture,
@@ -412,10 +412,12 @@ pub async fn make_app() -> Router {
         .nest_service("/assets", ServeDir::new("assets"))
         // `GET /` goes to `root`
         .route("/", get(root::root))
+        .route("/schedule", post(schedule::post))
         .nest(
-            "/term/:term",
+            "/schedule/:schedule_id",
             Router::new()
-                .route("/", get(term::term))
+                .route("/", get(schedule::get))
+                .route("/", delete(schedule::delete))
                 .route("/search", post(search::search))
                 .nest(
                     "/calendar",
@@ -427,6 +429,7 @@ pub async fn make_app() -> Router {
                         .route("/preview", get(preview::preview)),
                 ),
         )
+        // TODO: add .fallback() handler
         .with_state(state)
         .layer(
             TraceLayer::new_for_http()

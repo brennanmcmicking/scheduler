@@ -7,7 +7,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 use tracing::{debug, instrument};
 
-use crate::{components, scraper::Term};
+use crate::{components, middlewares::Schedule};
 
 use super::{AppError, DatabaseAppState};
 
@@ -18,14 +18,15 @@ pub struct Search {
 
 #[instrument(level = "debug", skip(state))]
 pub async fn search(
-    Path(term): Path<Term>,
+    Path(schedule_id): Path<String>,
     State(state): State<Arc<DatabaseAppState>>,
+    schedule: Schedule,
     Form(query): Form<Search>,
 ) -> Result<Markup, AppError> {
-    let courses = state.search(term, &query.search)?;
+    let courses = state.search(schedule.term, &query.search)?;
     debug!(?courses);
 
     Ok(html! {
-        (components::search_result::render(term, &courses))
+        (components::search_result::render(&schedule_id, &courses))
     })
 }
