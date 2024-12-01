@@ -9,7 +9,7 @@ use jiff::{
     ToSpan, Zoned,
 };
 
-#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Season {
     Spring,
     Summer,
@@ -26,6 +26,24 @@ impl From<Season> for i8 {
     }
 }
 
+impl TryFrom<Option<&str>> for Season {
+    type Error = ();
+
+    fn try_from(value: Option<&str>) -> std::result::Result<Self, Self::Error> {
+        match value {
+            Some(s) => {
+                match s {
+                    "Spring" => Ok(Season::Spring),
+                    "Summer" => Ok(Season::Summer),
+                    "Fall" => Ok(Season::Fall),
+                    _ => Err(())
+                }
+            },
+            None => Err(())
+        }
+    }    
+}
+
 impl TryFrom<i64> for Season {
     type Error = anyhow::Error;
 
@@ -39,7 +57,13 @@ impl TryFrom<i64> for Season {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+impl Display for Season {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct Term {
     year: i16,
     season: Season,
@@ -59,6 +83,10 @@ impl Term {
     pub fn during(self, time: &Zoned) -> bool {
         let (start, end) = self.time_range();
         start <= *time && *time < end
+    }
+
+    pub fn human_display(self) -> String {
+        format!("{} {}", self.season, self.year).to_ascii_lowercase()
     }
 }
 
@@ -96,6 +124,23 @@ impl Display for Term {
 impl FromStr for Term {
     type Err = anyhow::Error;
 
+    // fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+    //     let mut split = s.split_ascii_whitespace();
+    //     let season: Season = split.nth(0).try_into().map_err(|_e| anyhow!("failed to parse term season"))?;
+    //     let year: i16 = match split.nth(1) {
+    //         Some(s) => match s.parse() {
+    //             Ok(v) => v,
+    //             Err(_e) => bail!("failed to parse year")
+    //         },
+    //         None => bail!("no year present"),
+    //     };
+
+    //     Ok(Term {
+    //         season,
+    //         year,
+    //     })
+    // }
+    
     fn from_str(s: &str) -> Result<Self> {
         if s.len() != 6 {
             bail!("term string should be 6 characters: 4 for year, 2 for month")
@@ -107,16 +152,6 @@ impl FromStr for Term {
             .try_into()
             .map_err(|e| anyhow!("failed to parse term season: {e}"))?;
         Ok(Term { year, season })
-    }
-}
-
-impl<'de> Deserialize<'de> for Term {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        s.parse().map_err(serde::de::Error::custom)
     }
 }
 

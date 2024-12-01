@@ -6,15 +6,12 @@ use axum::{
 };
 use maud::html;
 use serde::Deserialize;
-use tracing::debug;
 
 use crate::{
-    components::container::calendar_view_container,
-    middlewares::SelectedCourses,
-    scraper::{Term, ThinCourse, ThinSection},
+    components::{self}, middlewares::Schedule, scraper::ThinSection
 };
 
-use super::{selected_sections, AppError, DatabaseAppState, SectionType};
+use super::{selected_sections, AppError, DatabaseAppState};
 
 fn default_crn() -> u64 {
     0
@@ -27,20 +24,23 @@ pub struct Preview {
 }
 
 pub async fn preview(
-    Path(term): Path<Term>,
+    Path(_schedule_id): Path<String>,
     State(state): State<Arc<DatabaseAppState>>,
-    selected: SelectedCourses,
     Query(Preview { crn }): Query<Preview>,
+    schedule: Schedule
 ) -> Result<impl IntoResponse, AppError> {
-    let previewed = if crn != 0 {
+    let selected = schedule.selected;
+    let previewed = if crn != 0 && !selected.crns().contains(&crn) {
         let thin_section = ThinSection { crn };
-        vec![state.get_section(&term, &thin_section)?]
+        vec![state.get_section(&schedule.term, &thin_section)?]
     } else {
         vec![]
     };
 
-    let courses = state.courses(term, &selected.thin_courses())?;
+    let courses = state.courses(schedule.term, &selected.thin_courses())?;
     let sections = selected_sections(&courses, &selected);
 
-    Ok(html!((calendar_view_container(true, &sections, &previewed))))
+    Ok(html!(
+        (components::calendar::view(&sections, &previewed))
+    ))
 }
