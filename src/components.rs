@@ -17,8 +17,8 @@ pub fn base(content: Markup) -> Markup {
                 script src="/assets/tailwind.js" {}
                 meta name="viewport" content="width=device-width,initial-scale=1.0" {}
             }
-            body hx-ext="multi-swap" class="w-full bg-slate-100 dark:bg-neutral-900 dark:text-white overflow-y-none" {
-                div id="app-container" class="flex flex-col h-screen" {
+            body hx-ext="multi-swap" class="h-full w-full bg-slate-100 dark:bg-neutral-900 dark:text-white overflow-y-none" {
+                div id="app-container" class="h-full flex flex-col" {
                     div class="shadow-lg w-full bg-white dark:bg-neutral-800 block" {
                         div id="header-container" class="max-w-screen-2xl w-full mx-auto flex" {
                             div class="w-1/3 px-1 lg:py-2" {

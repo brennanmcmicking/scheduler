@@ -30,21 +30,22 @@ async fn main() -> anyhow::Result<()> {
     // build our application with a route
     let app = routes::make_app().await;
     // run our app with hyper, listening globally on port
-    let soc: SocketAddr = "0.0.0.0:8080"
-        .parse()
-        .context("invalid binding socket address")?;
     let config = RustlsConfig::from_pem_file(
         PathBuf::from("/scheduler/fullchain.pem"), 
         PathBuf::from("/scheduler/privkey.pem"),
     )
     .await;
 
+    let soc: SocketAddr = "0.0.0.0:8443"
+    .parse()
+    .context("invalid binding socket address")?;
+
 
     // if the TLS certs are present, bind with HTTPS
     // otherwise, run normally
     match config {
         Ok(c) => { 
-            info!("found TLS configuration, listening on 80 and 8080");
+            info!("found TLS configuration, listening on 8080 and 8443");
             tokio::spawn(redirect_http_to_https());
             axum_server::bind_rustls(soc, c)
                 .serve(app.into_make_service())
@@ -52,7 +53,7 @@ async fn main() -> anyhow::Result<()> {
                 .unwrap();
         },
         Err(_e) => {
-            info!("running non-https version on port 8080");
+            info!("running non-https version on port 8443");
             let listener = tokio::net::TcpListener::bind(&soc)
                 .await
                 .with_context(|| anyhow!("failed to bind listener to {}", soc))?;
@@ -60,7 +61,6 @@ async fn main() -> anyhow::Result<()> {
                 .await
                 .context("error while serving app")?;
         }
-
     }
 
     Ok(())
@@ -93,7 +93,7 @@ async fn redirect_http_to_https() {
         }
     };
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 80));
+    let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     debug!("https upgrader listening on {}", listener.local_addr().unwrap());
     axum::serve(listener, redirect.into_make_service())
