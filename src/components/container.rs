@@ -19,7 +19,7 @@ pub fn main_container(
             }
             div id="interactive-container" class="w-full h-1/2 flex flex-row px-1 pb-1 gap-1 lg:contents" {
                 div id="search-container" class="flex flex-col gap-1 h-full grow-0 max-w-48 lg:w-48 lg:shrink-0 lg:order-first" {
-                    div id="search-text-container" class="w-full h-16 rounded-lg p-1 bg-white dark:bg-neutral-800 text-xl shadow-lg" {
+                    div id="search-text-container" class="w-full h-16 rounded-lg p-1 bg-white dark:bg-neutral-800 text-xl" {
                         input class="form-control w-full h-full lowercase bg-white dark:bg-neutral-800 placeholder:text-neutral-800 dark:placeholder:text-neutral-400" type="search"
                             name="search" placeholder="Search..."
                             hx-post={"/schedule/" (schedule_id) "/search"}

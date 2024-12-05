@@ -345,7 +345,7 @@ mod scrape {
         let sections_num = u32::try_from(sections.len())?;
         let sections_left = res.total_count - sections_num;
         // ceil division
-        let requests_left = (sections_left + res.page_max_size - 1) / res.page_max_size;
+        let requests_left = sections_left.div_ceil(res.page_max_size);
 
         let handles = (0..requests_left).map(|i| {
             fetch_sections_partial(client.clone(), term, sections_num + i * res.page_max_size)

@@ -134,36 +134,47 @@ pub fn view(
         div id="courses-view" class="flex flex-col gap-2 " {
             @if courses.is_empty() {
                 "use the search bar to add some courses"
-            }
-            @for course in courses {
-                @let lectures: Vec<&Section> = course.sections.iter().filter(|s| s.sequence_code.starts_with("A")).collect();
-                @let labs : Vec<&Section>= course.sections.iter().filter(|s| s.sequence_code.starts_with("B")).collect();
-                @let tutorials: Vec<&Section> = course.sections.iter().filter(|s| s.sequence_code.starts_with("T")).collect();
-                div id={"courses-card-" (&course.subject_code) " " (&course.course_code)} class="bg-neutral-200 dark:bg-neutral-700 rounded-lg flex-col justify-center items-center p-1" {
-                    div class="w-full flex items-center justify-between overflow-hidden text-xl align-middle" {
-                        (&course.subject_code) " " (&course.course_code)
-                        form class="mb-0" {
-                            button name="course" value={(course.subject_code) " " (course.course_code)}
-                            class="bg-red-500 dark:bg-red-600 hover:bg-red-700 hover:dark:bg-red-800 h-full text-xl p-1 rounded-lg"
-                            hx-delete={"/schedule/" (schedule_id) "/calendar"} hx-swap="multi:#calendar-view,#courses-view" {
-                                "remove"
+            } @else {
+                div class="flex justify-between gap-2" { 
+                    a class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 transition rounded-lg h-full p-1 my-1 text-xl"
+                    href={"/share/" (schedule_id)} {
+                        "share"
+                    }
+                    a class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 transition rounded-lg h-full p-1 my-1 text-xl"
+                    href="/" {
+                        "generate"
+                    }
+                }
+                @for course in courses {
+                    @let lectures: Vec<&Section> = course.sections.iter().filter(|s| s.sequence_code.starts_with("A")).collect();
+                    @let labs : Vec<&Section>= course.sections.iter().filter(|s| s.sequence_code.starts_with("B")).collect();
+                    @let tutorials: Vec<&Section> = course.sections.iter().filter(|s| s.sequence_code.starts_with("T")).collect();
+                    div id={"courses-card-" (&course.subject_code) " " (&course.course_code)} class="bg-neutral-200 dark:bg-neutral-700 rounded-lg flex-col justify-center items-center p-1" {
+                        div class="w-full flex items-center justify-between overflow-hidden text-xl align-middle" {
+                            (&course.subject_code) " " (&course.course_code)
+                            form class="mb-0" {
+                                button name="course" value={(course.subject_code) " " (course.course_code)}
+                                class="bg-red-500 dark:bg-red-600 hover:bg-red-700 hover:dark:bg-red-800 h-full text-xl p-1 rounded-lg"
+                                hx-delete={"/schedule/" (schedule_id) "/calendar"} hx-swap="multi:#calendar-view,#courses-view" {
+                                    "remove"
+                                }
                             }
                         }
-                    }
-                    h3 {
-                        (&course.title)
-                    }
-
-                    @if !lectures.is_empty() {
-                        (sections(&schedule_id, lectures, &selected))
-                    }
-
-                    @if !labs.is_empty() {
-                        (sections(&schedule_id, labs, &selected))
-                    }
-
-                    @if !tutorials.is_empty() {
-                        (sections(&schedule_id, tutorials, &selected))
+                        h3 {
+                            (&course.title)
+                        }
+    
+                        @if !lectures.is_empty() {
+                            (sections(&schedule_id, lectures, &selected))
+                        }
+    
+                        @if !labs.is_empty() {
+                            (sections(&schedule_id, labs, &selected))
+                        }
+    
+                        @if !tutorials.is_empty() {
+                            (sections(&schedule_id, tutorials, &selected))
+                        }
                     }
                 }
             }
