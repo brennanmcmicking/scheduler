@@ -29,6 +29,8 @@ mod preview;
 mod root;
 mod search;
 mod schedule;
+mod share;
+mod import;
 
 pub enum SectionType {
     Lecture,
@@ -412,6 +414,8 @@ pub async fn make_app() -> Router {
         .nest_service("/assets", ServeDir::new("assets"))
         // `GET /` goes to `root`
         .route("/", get(root::root))
+        .route("/share/:schedule_id", get(share::get))
+        .route("/import" , get(import::get))
         .route("/schedule", post(schedule::post))
         .nest(
             "/schedule/:schedule_id",

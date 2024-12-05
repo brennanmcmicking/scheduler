@@ -41,11 +41,13 @@ pub struct Schedule {
 }
 
 impl Schedule {
-    pub fn make_cookie(&self, id: String) -> Cookie<'static> {
+    pub fn to_base64(&self) -> String {
         let userstate_json = serde_json::to_string(&self).expect("failed to serialize to json");
+        STANDARD_NO_PAD.encode(userstate_json)
+    }
 
-        let userstate_base64 = STANDARD_NO_PAD.encode(userstate_json);
-
+    pub fn make_cookie(&self, id: String) -> Cookie<'static> {
+        let userstate_base64 = self.to_base64();
         Cookie::build((id, userstate_base64))
             .http_only(true)
             .secure(true)
@@ -56,16 +58,24 @@ impl Schedule {
     }
 }
 
+impl TryFrom<String> for Schedule {
+    type Error = anyhow::Error;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        let schedule_json = STANDARD_NO_PAD.decode(value)?;
+        debug!("{}", str::from_utf8(&schedule_json).unwrap());
+        let userstate = serde_json::from_slice(&schedule_json)?;
+        Ok(userstate)
+    }
+}
+
 impl<'a> TryFrom<&Cookie<'a>> for Schedule {
     type Error = anyhow::Error;
 
     fn try_from(cookie: &Cookie<'a>) -> Result<Self, Self::Error> {
         debug!("trying to decode cookie");
-        let cookie_base64 = cookie.value();
-        let cookie_json = STANDARD_NO_PAD.decode(cookie_base64)?;
-        debug!("{}", str::from_utf8(&cookie_json).unwrap());
-        let userstate = serde_json::from_slice(&cookie_json)?;
-        Ok(userstate)
+        let cookie_base64 = cookie.value().to_string();
+        Schedule::try_from(cookie_base64)
     }
 }
 
