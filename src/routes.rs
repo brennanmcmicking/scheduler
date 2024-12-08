@@ -3,10 +3,7 @@ use std::{collections::HashMap, env::current_dir, ops::DerefMut, path::PathBuf, 
 use anyhow::{Context, Ok, Result};
 
 use axum::{
-    http::{Request, StatusCode},
-    response::{IntoResponse, Response},
-    routing::{delete, get, patch, post, put},
-    Router,
+    http::{Request, StatusCode}, middleware, response::{IntoResponse, Response}, routing::{delete, get, patch, post, put}, Router
 };
 use r2d2_sqlite::SqliteConnectionManager;
 use regex::bytes::Regex;
@@ -431,7 +428,8 @@ pub async fn make_app() -> Router {
                         .route("/", patch(calendar::update_calendar))
                         .route("/", delete(calendar::rm_from_calendar))
                         .route("/preview", get(preview::preview)),
-                ),
+                )
+                .layer(middleware::from_fn(schedule::not_found))
         )
         // TODO: add .fallback() handler
         .with_state(state)
