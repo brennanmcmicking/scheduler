@@ -1,5 +1,5 @@
 use crate::{components::schedules, middlewares::{Schedule, Schedules, SelectedCourses}, routes::selected_sections, scraper::Term};
-use axum::{debug_handler, extract::{Path, State}, response::IntoResponse};
+use axum::{debug_handler, extract::{Path, Request, State}, middleware::Next, response::IntoResponse};
 use axum_extra::extract::{cookie::Cookie, CookieJar, Form};
 use maud::{html, Markup};
 use reqwest::StatusCode;
@@ -72,4 +72,21 @@ pub async fn delete(
         ),
         schedules::view(new_schedules)
     ))
+}
+
+#[instrument(level = "debug")]
+pub async fn not_found(
+    req: Request,
+    next: Next,
+) -> Result<impl IntoResponse, AppError> {
+    let res = next.run(req).await;
+    if res.status() == StatusCode::NOT_FOUND {
+        return Ok(components::base(html! {
+            div class="h-full flex items-center justify-center" {
+                "That schedule could not be found."
+            }
+        }).into_response());
+    }
+
+    Ok(res)
 }
