@@ -85,10 +85,10 @@ fn small_section_card(schedule_id: &String, section: &Section, selected: bool) -
     html!(
         form hx-patch={"/schedule/" (schedule_id) "/calendar" } hx-swap="multi:#calendar-view,#courses-view" class="mb-0" {
             div
-            hx-get={"/schedule/" (schedule_id) "/calendar"} hx-target="#calendar-view" hx-trigger="pointerleave delay:100ms"
+            // hx-get={"/schedule/" (schedule_id) "/calendar"} hx-target="#calendar-view" hx-trigger="pointerleave delay:100ms"
             {
                 button
-                hx-get={"/schedule/" (schedule_id) "/calendar/preview"} hx-target="#calendar-view" hx-trigger="pointerenter delay:100ms"
+                // hx-get={"/schedule/" (schedule_id) "/calendar/preview"} hx-target="#calendar-view" hx-trigger="pointerenter delay:100ms"
                 class={(color) " transition p-2 rounded-lg w-full flex flex-col"} name="crn" value=(crn) {
                     div class="font-bold" {
                         (sequence_code)
