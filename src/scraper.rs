@@ -9,7 +9,9 @@ use jiff::{
     ToSpan, Zoned,
 };
 
-#[derive(Clone, Copy, Debug, ValueEnum, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, ValueEnum, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
 pub enum Season {
     Spring,
     Summer,
@@ -31,17 +33,15 @@ impl TryFrom<Option<&str>> for Season {
 
     fn try_from(value: Option<&str>) -> std::result::Result<Self, Self::Error> {
         match value {
-            Some(s) => {
-                match s {
-                    "Spring" => Ok(Season::Spring),
-                    "Summer" => Ok(Season::Summer),
-                    "Fall" => Ok(Season::Fall),
-                    _ => Err(())
-                }
+            Some(s) => match s {
+                "Spring" => Ok(Season::Spring),
+                "Summer" => Ok(Season::Summer),
+                "Fall" => Ok(Season::Fall),
+                _ => Err(()),
             },
-            None => Err(())
+            None => Err(()),
         }
-    }    
+    }
 }
 
 impl TryFrom<i64> for Season {
@@ -140,7 +140,7 @@ impl FromStr for Term {
     //         year,
     //     })
     // }
-    
+
     fn from_str(s: &str) -> Result<Self> {
         if s.len() != 6 {
             bail!("term string should be 6 characters: 4 for year, 2 for month")

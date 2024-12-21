@@ -1,5 +1,7 @@
 use crate::{
-    components, middlewares::Schedule, scraper::{ThinCourse, ThinSection}
+    components,
+    middlewares::Schedule,
+    scraper::{ThinCourse, ThinSection},
 };
 use axum::{
     extract::{Form, Path, Query, State},
@@ -17,7 +19,7 @@ use super::{selected_sections, AppError, DatabaseAppState, SectionType};
 pub async fn get_calendar(
     Path(schedule_id): Path<String>,
     State(state): State<Arc<DatabaseAppState>>,
-    schedule: Schedule
+    schedule: Schedule,
 ) -> Result<impl IntoResponse, AppError> {
     let courses = state.courses(schedule.term, &schedule.selected.thin_courses())?;
     let sections = selected_sections(&courses, &schedule.selected);
@@ -51,7 +53,14 @@ pub async fn add_to_calendar(
         selected.courses.insert(course, default_sections);
 
         (
-            CookieJar::new().add(Schedule { name: schedule.name, term: schedule.term, selected: selected.clone() }.make_cookie(schedule_id.clone())),
+            CookieJar::new().add(
+                Schedule {
+                    name: schedule.name,
+                    term: schedule.term,
+                    selected: selected.clone(),
+                }
+                .make_cookie(schedule_id.clone()),
+            ),
             selected,
         )
     };
@@ -78,7 +87,7 @@ pub async fn rm_from_calendar(
     Path(schedule_id): Path<String>,
     State(state): State<Arc<DatabaseAppState>>,
     Query(Remove { course }): Query<Remove>,
-    schedule: Schedule
+    schedule: Schedule,
 ) -> Result<impl IntoResponse, AppError> {
     let selected = schedule.selected.clone();
     // no-op if course is not in cookie
@@ -164,9 +173,9 @@ pub async fn update_calendar(
     };
 
     let var_name = html! {
-            (components::calendar::view(&sections, &[]))
-            (components::courses::view(&schedule_id, &courses, &sections))
-        };
+        (components::calendar::view(&sections, &[]))
+        (components::courses::view(&schedule_id, &courses, &sections))
+    };
     Ok((
         CookieJar::new().add(new_schedule.make_cookie(schedule_id.clone())),
         var_name,
