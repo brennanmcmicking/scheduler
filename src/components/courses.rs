@@ -70,7 +70,6 @@ fn meeting_time_indicator(mt: &MeetingTime) -> Markup {
     )
 }
 
-
 fn small_section_card(schedule_id: &String, section: &Section, selected: bool) -> Markup {
     let color = match selected {
         true => "bg-blue-600 dark:bg-blue-800",
@@ -137,7 +136,7 @@ pub fn view(schedule_id: &String, courses: &[Course], selected: &[Section]) -> M
                         "share"
                     }
                     a class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 transition rounded-lg h-full p-1 my-1 text-xl"
-                    href="/" {
+                    href={"/schedule/" (schedule_id) "/generate"} {
                         "generate"
                     }
                 }

@@ -26,6 +26,7 @@ use crate::{
 };
 
 mod calendar;
+mod generate;
 mod import;
 mod preview;
 mod root;
@@ -424,6 +425,7 @@ pub async fn make_app() -> Router {
                 .route("/", get(schedule::get))
                 .route("/", delete(schedule::delete))
                 .route("/search", post(search::search))
+                .route("/generate", get(generate::get).post(generate::post))
                 .nest(
                     "/calendar",
                     Router::new()
