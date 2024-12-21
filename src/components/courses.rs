@@ -122,11 +122,7 @@ fn sections(schedule_id: &String, sections: Vec<&Section>, selected: &[u64]) -> 
     )
 }
 
-pub fn view(
-    schedule_id: &String,
-    courses: &[Course],
-    selected: &[Section],
-) -> Markup {
+pub fn view(schedule_id: &String, courses: &[Course], selected: &[Section]) -> Markup {
     let selected: Vec<u64> = selected.iter().map(|s| s.crn).collect();
     debug!(?selected);
 
@@ -135,7 +131,7 @@ pub fn view(
             @if courses.is_empty() {
                 "use the search bar to add some courses"
             } @else {
-                div class="flex justify-between gap-2" { 
+                div class="flex justify-between gap-2" {
                     a class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 transition rounded-lg h-full p-1 my-1 text-xl"
                     href={"/share/" (schedule_id)} {
                         "share"
@@ -163,15 +159,15 @@ pub fn view(
                         h3 {
                             (&course.title)
                         }
-    
+
                         @if !lectures.is_empty() {
                             (sections(&schedule_id, lectures, &selected))
                         }
-    
+
                         @if !labs.is_empty() {
                             (sections(&schedule_id, labs, &selected))
                         }
-    
+
                         @if !tutorials.is_empty() {
                             (sections(&schedule_id, tutorials, &selected))
                         }
@@ -181,3 +177,4 @@ pub fn view(
         }
     }
 }
+

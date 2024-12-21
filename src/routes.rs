@@ -3,7 +3,11 @@ use std::{collections::HashMap, env::current_dir, ops::DerefMut, path::PathBuf, 
 use anyhow::{Context, Ok, Result};
 
 use axum::{
-    http::{Request, StatusCode}, middleware, response::{IntoResponse, Response}, routing::{delete, get, patch, post, put}, Router
+    http::{Request, StatusCode},
+    middleware,
+    response::{IntoResponse, Response},
+    routing::{delete, get, patch, post, put},
+    Router,
 };
 use r2d2_sqlite::SqliteConnectionManager;
 use regex::bytes::Regex;
@@ -22,12 +26,12 @@ use crate::{
 };
 
 mod calendar;
+mod import;
 mod preview;
 mod root;
-mod search;
 mod schedule;
+mod search;
 mod share;
-mod import;
 
 pub enum SectionType {
     Lecture,
@@ -412,7 +416,7 @@ pub async fn make_app() -> Router {
         // `GET /` goes to `root`
         .route("/", get(root::root))
         .route("/share/:schedule_id", get(share::get))
-        .route("/import" , get(import::get))
+        .route("/import", get(import::get))
         .route("/schedule", post(schedule::post))
         .nest(
             "/schedule/:schedule_id",
@@ -429,7 +433,7 @@ pub async fn make_app() -> Router {
                         .route("/", delete(calendar::rm_from_calendar))
                         .route("/preview", get(preview::preview)),
                 )
-                .layer(middleware::from_fn(schedule::not_found))
+                .layer(middleware::from_fn(schedule::not_found)),
         )
         // TODO: add .fallback() handler
         .with_state(state)
