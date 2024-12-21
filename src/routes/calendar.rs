@@ -1,5 +1,5 @@
 use crate::{
-    components, middlewares::{Schedule, Session}, scraper::{ThinCourse, ThinSection}
+    components, middlewares::{Schedule, Session}, scraper::{ThinCourse, ThinSection},
 };
 use axum::{
     extract::{Form, Path, Query, State},
@@ -17,7 +17,7 @@ use super::{selected_sections, AppError, DatabaseAppState, SectionType};
 pub async fn get_calendar(
     Path(schedule_id): Path<String>,
     State(state): State<Arc<DatabaseAppState>>,
-    schedule: Schedule
+    schedule: Schedule,
 ) -> Result<impl IntoResponse, AppError> {
     let courses = state.courses(schedule.term, &schedule.selected.thin_courses())?;
     let sections = selected_sections(&courses, &schedule.selected);

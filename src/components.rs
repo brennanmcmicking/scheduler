@@ -5,9 +5,9 @@ use crate::middlewares::{Authority, Session};
 pub mod button;
 pub mod calendar;
 pub mod container;
-pub mod search_result;
-pub mod schedules;
 pub mod courses;
+pub mod schedules;
+pub mod search_result;
 
 pub fn base(
     content: Markup,
