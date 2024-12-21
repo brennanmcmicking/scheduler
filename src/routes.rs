@@ -37,6 +37,7 @@ use crate::{
 };
 
 mod calendar;
+mod generate;
 mod import;
 mod login;
 mod preview;
@@ -884,6 +885,7 @@ pub async fn make_app(stage: Stage, use_local_dynamo: bool) -> Router {
                 .route("/", get(schedule::get))
                 .route("/", delete(schedule::delete))
                 .route("/search", post(search::search))
+                .route("/generate", get(generate::get).post(generate::post))
                 .nest(
                     "/calendar",
                     Router::new()
