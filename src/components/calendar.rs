@@ -1,7 +1,6 @@
 use itertools::Itertools;
 use jiff::{civil::Time, ToSpan};
 use maud::{html, Markup};
-use tracing::debug;
 
 use crate::scraper::{Day, MeetingTime, Section};
 
@@ -66,7 +65,7 @@ fn render_section_cards(earliest: &Time, latest: &Time, renderable_meeting: &Ren
     )
 }
 
-fn render_day(day: Day, timeslots: &Vec<Time>, sections: &Vec<Section>, preview_sections: &[Section]) -> Markup {
+fn render_day(day: Day, timeslots: &Vec<Time>, sections: &[Section], preview_sections: &[Section]) -> Markup {
     let earliest = timeslots.first().unwrap();
     let latest = timeslots.last().unwrap();
 
@@ -99,7 +98,7 @@ fn render_day(day: Day, timeslots: &Vec<Time>, sections: &Vec<Section>, preview_
     .into_iter()
     .filter(|rm| day.is_in_days(rm.mt.days))
     .collect();
-    debug!(?day, ?sections);
+    // debug!(?day, ?sections);
     html!(
         div class="flex-1 flex flex-col" {
             div class="text-[calc(1.5vh)] lg:text-sm shrink flex justify-center items-center" { (day.to_string().to_lowercase()) }
@@ -118,13 +117,13 @@ fn render_day(day: Day, timeslots: &Vec<Time>, sections: &Vec<Section>, preview_
     )
 }
 
-pub fn view(sections: &Vec<Section>, preview_sections: &[Section]) -> Markup {
-    debug!(?sections);
+pub fn view(sections: &[Section], preview_sections: &[Section]) -> Markup {
+    // debug!(?sections);
 
     let meeting_times: Vec<&MeetingTime> = sections.iter().flat_map(|s| &s.meeting_times).chain(preview_sections.iter().flat_map(
         |s| &s.meeting_times
     )).collect();
-    debug!(?meeting_times);
+    // debug!(?meeting_times);
 
     let earliest: Time = meeting_times
         .iter()
@@ -139,7 +138,7 @@ pub fn view(sections: &Vec<Section>, preview_sections: &[Section]) -> Markup {
         .unwrap_or(jiff::civil::time(23, 20, 0, 0))
         - 20.minutes();
 
-    debug!(?earliest, ?latest);
+    // debug!(?earliest, ?latest);
 
     let timeslots = earliest
         .series(30.minutes())

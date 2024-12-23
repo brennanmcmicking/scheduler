@@ -166,6 +166,19 @@ pub struct Days {
     pub sunday: bool,
 }
 
+impl Display for Days {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let m = if self.monday { "m" } else { "" }.to_string();
+        let t = if self.tuesday { "t" } else { "" }.to_string();
+        let w = if self.wednesday { "w" } else { "" }.to_string();
+        let r = if self.thursday { "r" } else { "" }.to_string();
+        let fr = if self.friday { "f" } else { "" }.to_string();
+        let s = if self.saturday { "s" } else { "" }.to_string();
+        let u = if self.sunday { "u" } else { "" }.to_string();
+        write!(f, "{}{}{}{}{}{}{}", m, t, w, r, fr, s, u)
+    }
+}
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Day {
     Monday,
@@ -226,6 +239,12 @@ pub struct MeetingTime {
 
     pub building: Option<String>,
     pub room: Option<String>,
+}
+
+impl Display for MeetingTime {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {:?} - {:?}", self.days, self.start_time, self.end_time)
+    }
 }
 
 #[derive(Debug, Clone)]

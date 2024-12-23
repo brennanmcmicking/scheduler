@@ -40,5 +40,8 @@ axum-server = { version = "0.7.1", features = ["tls-rustls"] }
 uuid = { version = "1.11.0", features = ["v4", "fast-rng"] }
 aws-sdk-dynamodb = "1.56.0"
 aws-config = "1.5.11"
+<<<<<<< HEAD
 google-oauth = "1.11.3"
 serenity = "0.12.4"
+=======
+>>>>>>> 7732984 (feat: unfinished frontend for schedule generator)
