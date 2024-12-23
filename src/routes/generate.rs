@@ -8,8 +8,7 @@ use serde::Deserialize;
 use tracing::instrument;
 
 use crate::{
-    middlewares::Schedule,
-    scraper::{Course, MeetingTime, Section, ThinSection},
+    components, middlewares::Schedule, scraper::{Course, MeetingTime, Section, ThinSection}
 };
 
 use super::{AppError, DatabaseAppState};
@@ -51,16 +50,11 @@ pub async fn get(
     );
     let prev_url = next_url.clone() + "&prev=true";
 
-    Ok(html! {
-        div {
-            a href=(prev_url) { ("< Prev") };
-            (" | ")
-            a href=(next_url) { ("Next >") };
-        }
-        @for section in &sections {
-            div {(section.subject_code) (" ") (section.course_code) (" ") (section.sequence_code)};
-        }
-    })
+    // let section_refs = sections.iter().collect();
+
+    Ok(components::base(html! {
+        (components::container::generator_container(&schedule_id, &sections, &prev_url, &next_url))
+    }))
 }
 
 fn lazy_dfs(

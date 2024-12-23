@@ -70,7 +70,7 @@ fn meeting_time_indicator(mt: &MeetingTime) -> Markup {
     )
 }
 
-fn small_section_card(schedule_id: &String, section: &Section, selected: bool) -> Markup {
+fn small_section_card(schedule_id: &String, title: &String, section: &Section, selected: bool) -> Markup {
     let color = match selected {
         true => "bg-blue-600 dark:bg-blue-800",
         false => "bg-green-500 dark:bg-green-800 hover:bg-green-600 hover:dark:bg-green-900",
@@ -78,7 +78,6 @@ fn small_section_card(schedule_id: &String, section: &Section, selected: bool) -
 
     let meeting_times = &section.meeting_times;
     let crn = section.crn;
-    let sequence_code = &section.sequence_code;
     let full = section.enrollment >= section.enrollment_capacity || section.waitlist > 0;
 
     html!(
@@ -90,7 +89,7 @@ fn small_section_card(schedule_id: &String, section: &Section, selected: bool) -
                 // hx-get={"/schedule/" (schedule_id) "/calendar/preview"} hx-target="#calendar-view" hx-trigger="pointerenter delay:100ms"
                 class={(color) " transition p-2 rounded-lg w-full flex flex-col"} name="crn" value=(crn) {
                     div class="font-bold" {
-                        (sequence_code)
+                        (title)
                     }
                     div class="text-xs" {
                         @if full {
@@ -114,7 +113,7 @@ fn sections(schedule_id: &String, sections: Vec<&Section>, selected: &[u64]) -> 
     html!(
         div class="flex flex-col gap-2 py-2 border-t" {
             @for section in sections {
-                (small_section_card(schedule_id, &section, selected.contains(&section.crn)))
+                (small_section_card(schedule_id, &section.sequence_code, &section, selected.contains(&section.crn)))
             }
         }
 
@@ -177,3 +176,29 @@ pub fn view(schedule_id: &String, courses: &[Course], selected: &[Section]) -> M
     }
 }
 
+pub fn generator_view(schedule_id: &String, secs: &Vec<Section>, prev_url: &String, next_url: &String) -> Markup {
+    html! {
+        div class="flex justify-between gap-2" {
+            a class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 transition rounded-lg h-full p-1 my-1 text-xl"
+            href=(prev_url) {
+                "previous"
+            }
+            a class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 transition rounded-lg h-full p-1 my-1 text-xl"
+            href=(next_url) {
+                "next"
+            }
+        }
+        (generator_sections(schedule_id, secs))
+    }
+}
+
+fn generator_sections(schedule_id: &String, sections: &Vec<Section>) -> Markup {
+    html!(
+        div class="flex flex-col gap-2 py-2 border-t" {
+            @for section in sections {
+                @let card_title = format!("{} {} {}", &section.subject_code, &section.course_code, &section.sequence_code);
+                (small_section_card(schedule_id, &card_title, &section, true))
+            }
+        }
+    )
+}

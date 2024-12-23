@@ -62,8 +62,7 @@ impl Schedule {
             .http_only(true)
             .secure(true)
             .path("/")
-            // .max_age(Duration::MAX) // do we want exp date?
-            // .domain(value) // TODO: set domain?
+            .permanent()
             .build()
     }
 }

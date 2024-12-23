@@ -1,6 +1,7 @@
 use maud::{html, Markup};
 
 use crate::middlewares::{Authority, Session};
+use crate::components;
 
 pub mod button;
 pub mod calendar;
@@ -48,9 +49,7 @@ pub fn base(
                     div class="shadow-lg w-full bg-white dark:bg-neutral-800 block" {
                         div id="header-container" class="max-w-screen-2xl w-full mx-auto flex max-h-6 lg:max-h-12" {
                             div class="w-1/3 px-1 lg:py-2" {
-                                a href="/" class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 rounded-lg transition px-1 lg:p-1 float-left" {
-                                    "home"
-                                }
+                                (components::button::link("/", html!("home")))
                             }
                             div class="w-1/3 flex justify-center items-center" {
                                 "uvic scheduler"
