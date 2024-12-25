@@ -1,8 +1,8 @@
-use std::{collections::BTreeMap, str::{self}};
+use std::{collections::BTreeMap, str::{self}, sync::Arc};
 
 use axum::{
     async_trait,
-    extract::{FromRequestParts, Path},
+    extract::{FromRef, FromRequestParts, Path},
     http::{request, StatusCode},
 };
 use axum_extra::extract::{cookie::Cookie, CookieJar};
@@ -10,7 +10,7 @@ use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
-use crate::scraper::{Term, ThinCourse, ThinSection};
+use crate::{routes::DatabaseAppState, scraper::{Term, ThinCourse, ThinSection}};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Selection {
@@ -95,41 +95,75 @@ impl SelectedCourses {
     }
 }
 
-#[derive(Deserialize)]
-struct SchedulePath {
-    schedule_id: String,
+#[derive(Debug)]
+pub struct Session {
+    pub token: String,
 }
 
-#[async_trait] // needed to prevent lifetime errors
-impl<S: Send + Sync> FromRequestParts<S> for Schedule {
+#[async_trait]
+impl<S: Send + Sync> FromRequestParts<S> for Session {
     type Rejection = StatusCode;
 
     async fn from_request_parts(
         parts: &mut request::Parts,
         state: &S,
     ) -> Result<Self, Self::Rejection> {
-        debug!("deserializing parts");
+        let jar = CookieJar::from_request_parts(parts, state).await.unwrap();
+        match jar.get("session") {
+            Some(cookie) => std::result::Result::Ok(Session {
+                token: cookie.value().to_string()
+            }),
+            None => Err(StatusCode::NOT_FOUND)
+        }
+    }
+}
+
+#[derive(Deserialize)]
+struct SchedulePath {
+    schedule_id: String,
+}
+
+#[async_trait] // needed to prevent lifetime errors
+impl<S: Send + Sync> FromRequestParts<S> for Schedule
+where 
+    Arc<DatabaseAppState>: FromRef<S>,
+    S: Send + Sync
+{
+    type Rejection = StatusCode;
+
+    async fn from_request_parts(
+        parts: &mut request::Parts,
+        state: &S,
+    ) -> Result<Self, Self::Rejection> {
         let Path(SchedulePath { schedule_id }) =
             Path::from_request_parts(parts, state)
                 .await
                 .map_err(|err| {
                     tracing::trace!("failed to get schedule from path: {:?}", err);
-                    debug!("failed to parse: {:?}", err);
                     StatusCode::NOT_FOUND
                 })?;
 
         let jar = CookieJar::from_request_parts(parts, state).await.unwrap();
 
         debug!("schedule_id: {}", schedule_id);
-
-        match jar.get(&schedule_id) {
-            Some(cookie) => Ok(Schedule::try_from(cookie).map_err(|err| {
-                    tracing::trace!("failed to parse: {:?}", err);
-                    debug!("failed to parse: {:?}", err);
-                    StatusCode::NOT_FOUND
-                })?),
-            None => Err(StatusCode::NOT_FOUND),
-        }
+        let state = Arc::from_ref(state);
+        state.get_user_schedule("asdf", schedule_id.as_str()).await.map_err(|_e| StatusCode::NOT_FOUND)
+        // match jar.get("session") {
+        //     Some(cookie) => {
+        //         let state = Arc::from_ref(state);
+        //         state.get_user_schedule(cookie.value(), schedule_id.as_str()).await.map_err(|_e| StatusCode::NOT_FOUND)
+        //     },
+        //     None => {
+        //         match jar.get(&schedule_id) {
+        //             Some(cookie) => Ok(Schedule::try_from(cookie).map_err(|err| {
+        //                     tracing::trace!("failed to parse: {:?}", err);
+        //                     debug!("failed to parse: {:?}", err);
+        //                     StatusCode::NOT_FOUND
+        //                 })?),
+        //             None => Err(StatusCode::NOT_FOUND),
+        //         }
+        //     }
+        // }
     }
 }
 

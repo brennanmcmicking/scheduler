@@ -1,4 +1,4 @@
-use crate::{components::schedules, middlewares::{Schedule, Schedules, SelectedCourses}, routes::selected_sections, scraper::Term};
+use crate::{components::schedules, middlewares::{Schedule, Schedules, SelectedCourses, Session}, routes::selected_sections, scraper::Term};
 use axum::{debug_handler, extract::{Path, Request, State}, middleware::Next, response::IntoResponse};
 use axum_extra::extract::{cookie::Cookie, CookieJar, Form};
 use maud::{html, Markup};
@@ -6,7 +6,7 @@ use reqwest::StatusCode;
 use serde::Deserialize;
 use uuid::Uuid;
 use std::sync::Arc;
-use tracing::{debug, instrument};
+use tracing::instrument;
 
 use crate::components;
 
@@ -18,7 +18,6 @@ pub async fn get(
     State(state): State<Arc<DatabaseAppState>>,
     schedule: Schedule,
 ) -> Result<Markup, AppError> {
-    debug!("schedule endpoint called");
     let search_courses = state.thin_courses(schedule.term)?;
     let courses = state.courses(schedule.term, &schedule.selected.thin_courses())?;
     let sections = selected_sections(&courses, &schedule.selected);
@@ -39,37 +38,66 @@ pub struct Create {
 #[debug_handler]
 pub async fn post(
     State(state): State<Arc<DatabaseAppState>>,
+    session: Option<Session>,
     Form(Create { term, name }): Form<Create>,
 ) -> Result<impl IntoResponse, AppError> {
     let uuid = Uuid::new_v4();
     let term: Term = term.parse().unwrap();
+    let new_schedule = Schedule {
+        name,
+        term,
+        selected: SelectedCourses::default()
+    };
+    let session = Some(Session {
+        token: "asdf".to_string()
+    });
     if state.get_terms().contains(&term) {
-        Ok((
-            CookieJar::new().add(Schedule {
-                name,
-                term,
-                selected: SelectedCourses::default(),
-            }.make_cookie(uuid.to_string())),
-            [("location", format!("/schedule/{}", uuid))],
-            StatusCode::MOVED_PERMANENTLY
-        ))
+        match session {
+            Some(sess) => {
+                state.set_user_schedule(&sess.token, &uuid.to_string(), &new_schedule).await;
+                Ok((
+                    CookieJar::new(),
+                    [("location", format!("/schedule/{}", uuid))],
+                    StatusCode::MOVED_PERMANENTLY,
+                ))
+            },
+            None => Ok((
+                CookieJar::new().add(new_schedule.make_cookie(uuid.to_string())),
+                [("location", format!("/schedule/{}", uuid))],
+                StatusCode::MOVED_PERMANENTLY
+            ))
+        }
     } else {
         Err(AppError::Code(StatusCode::BAD_REQUEST))
     }
 }
 
-#[instrument(level = "debug")]
+#[instrument(level = "debug", skip(state))]
 pub async fn delete(
+    State(state): State<Arc<DatabaseAppState>>,
     Path(schedule_id): Path<String>,
+    session: Option<Session>,
     schedules: Schedules,
 ) -> Result<impl IntoResponse, AppError> {
+    let session = Some(Session {
+        token: "asdf".to_string()
+    });
     let new_schedules = schedules.schedules.into_iter().filter(|s| !s.id.eq(&schedule_id)).collect();
-    let mut cookie = Cookie::build((schedule_id, "")).path("/").build();
-    cookie.make_removal();
+    let mut jar = CookieJar::new();
+
+    match session {
+        Some(sess) => {
+            state.delete_user_schedule(&sess.token, &schedule_id).await;
+        },
+        None => { 
+            let mut cookie = Cookie::build((schedule_id, "")).path("/").build();
+            cookie.make_removal();
+            jar = jar.add(cookie);
+        }
+    };
+
     Ok((
-        CookieJar::new().add(
-            cookie
-        ),
+        jar,
         schedules::view(new_schedules)
     ))
 }
