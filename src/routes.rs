@@ -1,6 +1,9 @@
 use std::{collections::HashMap, env::current_dir, ops::DerefMut, path::PathBuf, sync::Arc};
 
-use anyhow::{Context, Ok, Result};
+use anyhow::{anyhow, Context, Ok, Result};
+use aws_config::meta::region::RegionProviderChain;
+use aws_config::BehaviorVersion;
+use aws_sdk_dynamodb::{operation::create_table::CreateTableOutput, types::{AttributeDefinition, AttributeValue, KeySchemaElement, KeyType, ProvisionedThroughput, ScalarAttributeType}, Client};
 
 use axum::{
     http::{Request, StatusCode}, middleware, response::{IntoResponse, Response}, routing::{delete, get, patch, post, put}, Router
@@ -17,7 +20,7 @@ use tower_http::{
 use tracing::{debug, debug_span, error};
 
 use crate::{
-    middlewares::{SelectedCourses, Selection},
+    middlewares::{Schedule, SelectedCourses, Selection},
     scraper::{Course, Days, MeetingTime, Section, Term, ThinCourse, ThinSection},
 };
 
@@ -58,12 +61,130 @@ pub fn selected_sections(courses: &[Course], selected: &SelectedCourses) -> Vec<
         .collect()
 }
 
+pub struct User {
+    schedules: Vec<Schedule>,
+}
+
+trait UserStore {
+    async fn get_user(&self, token: &str) -> Result<User>;
+    async fn get_user_schedule(&self, token: &str, schedule_id: &str) -> Result<Schedule, AppError>;
+    async fn set_user_schedule(&self, token: &str, schedule_id: &str, schedule: &Schedule) -> Schedule;
+    async fn delete_user_schedule(&self, token: &str, schedule_id: &str);
+}
+
+#[derive(Clone)]
+struct DynamoUserStore {
+    ddb_client: aws_sdk_dynamodb::Client,
+}
+
+impl DynamoUserStore {
+    pub fn new(ddb_client: Client) -> DynamoUserStore {
+        Self {
+            ddb_client
+        }
+    }
+}
+
+impl UserStore for DynamoUserStore {
+    async fn get_user(&self, token: &str) -> Result<User> {
+        debug!("get_user called");
+        let results = self.ddb_client
+            .query()
+            .table_name("schedules")
+            .key_condition_expression("#t = :token")
+            .expression_attribute_names("#t", "token")
+            .expression_attribute_values(":token", AttributeValue::S(token.to_string()))
+            .send()
+            .await.unwrap();
+
+        fn parse(item: &HashMap<String, AttributeValue>) -> Schedule {
+            serde_json::from_str(item.get("schedule").unwrap().as_s().unwrap()).unwrap()
+        }
+
+        let u = User {
+            schedules: results.items.unwrap().iter().map(parse).collect()
+        };
+
+        Ok(u)
+    }
+
+    async fn get_user_schedule(&self, token: &str, schedule_id: &str) -> Result<Schedule, AppError> {
+        debug!("get_user_schedule called");
+        let results = self.ddb_client
+            .query()
+            .table_name("schedules")
+            .key_condition_expression("#t = :token AND scheduleId = :schedule_id")
+            .expression_attribute_names("#t", "token")
+            .expression_attribute_values(":token", AttributeValue::S(token.to_string()))
+            .expression_attribute_values(":schedule_id", AttributeValue::S(schedule_id.to_string()))
+            .send()
+            .await.unwrap();
+
+        if let Some(items) = results.items {
+            let s: Schedule = serde_json::from_str(items.first().unwrap().get("schedule").unwrap().as_s().unwrap()).unwrap();
+            std::result::Result::Ok(s)
+        } else {
+            Err(AppError::Anyhow(anyhow!("failed")))
+        }
+    }
+    
+    async fn set_user_schedule(&self, token: &str, schedule_id: &str, schedule: &Schedule) -> Schedule {
+        let token_av = AttributeValue::S(token.to_string());
+        let schedule_id_av = AttributeValue::S(schedule_id.to_string());
+        let schedule_av = AttributeValue::S(serde_json::to_string(&schedule).unwrap());
+    
+        let request = self.ddb_client
+            .put_item()
+            .table_name("schedules")
+            .item("token", token_av)
+            .item("scheduleId", schedule_id_av)
+            .item("schedule", schedule_av);
+
+        let resp = request.send().await.unwrap();
+        // let attrs = resp.attributes().unwrap();
+        // let schedule_av = attrs.get("schedule").cloned().unwrap();
+        // serde_json::from_str(schedule_av.as_s().unwrap()).unwrap()
+        schedule.clone().to_owned()
+    }
+
+    async fn delete_user_schedule(&self, token: &str, schedule_id: &str) {
+        match self.ddb_client
+            .delete_item()
+            .table_name("schedules")
+            .key("token", AttributeValue::S(token.to_string()))
+            .key("scheduleId", AttributeValue::S(schedule_id.to_string()))
+            .send()
+            .await {
+                std::result::Result::Ok(_out) => debug!("deleted schedule {}:{}", token, schedule_id),
+                Err(err) => error!("failed to delete schedule {}:{}, {}", token, schedule_id, err),
+            }
+    }
+ }
+
+
+#[derive(Clone)]
 pub struct DatabaseAppState {
     terms: HashMap<Term, r2d2::Pool<SqliteConnectionManager>>,
+    user_store: DynamoUserStore
 }
 
 impl DatabaseAppState {
     pub async fn new(dir: PathBuf) -> Result<Self> {
+        let region = RegionProviderChain::default_provider().or_else("us-east-1");
+        let ddb_config = aws_config::defaults(BehaviorVersion::latest())
+            .region(region)
+            .endpoint_url("http://localhost:8000")
+            .load()
+            .await;
+        let ddb_client = aws_sdk_dynamodb::Client::new(&ddb_config);
+
+        let table_list = ddb_client.list_tables().send().await.unwrap();
+        if !table_list.table_names().contains(&"schedules".to_string()) {
+            let _ = DatabaseAppState::create_table(&ddb_client, "schedules", "token", "scheduleId").await.map_err(|_e| panic!());
+        }
+    
+        let user_store = DynamoUserStore::new(ddb_client);
+
         let mut terms = HashMap::new();
 
         let mut entries = fs::read_dir(dir).await?;
@@ -89,7 +210,7 @@ impl DatabaseAppState {
 
             terms.insert(term, pool);
         }
-        Ok(Self { terms })
+        Ok(Self { terms, user_store })
     }
 
     pub fn get_terms(&self) -> Vec<Term> {
@@ -362,6 +483,72 @@ impl DatabaseAppState {
 
     pub fn get_conn(&self, term: &Term) -> Option<impl DerefMut<Target = Connection>> {
         self.terms.get(term).and_then(|p| p.get().ok())
+    }
+
+    pub async fn get_user(&self, token: &str) -> std::result::Result<User, AppError> {
+        self.user_store.get_user(token).await.map_err(|_e| AppError::Anyhow(anyhow!("failed to get user")))
+    }
+
+    pub async fn get_user_schedule(&self, token: &str, schedule_id: &str) -> Result<Schedule, AppError> {
+        self.user_store.get_user_schedule(token, schedule_id).await
+    }
+
+    pub async fn set_user_schedule(&self, token: &str, schedule_id: &str, schedule: &Schedule) -> Schedule {
+        self.user_store.set_user_schedule(token, schedule_id, schedule).await
+    }
+
+    pub async fn delete_user_schedule(&self, token: &str, schedule_id: &str) {
+        self.user_store.delete_user_schedule(token, schedule_id).await;
+    }
+
+    pub async fn create_table(
+        client: &Client,
+        table: &str,
+        primary_key: &str,
+        sort_key: &str,
+    ) -> Result<CreateTableOutput, AppError> {
+        let pk_name: String = primary_key.into();
+        let sk_name: String = sort_key.into();
+        let table_name: String = table.into();
+    
+        let pk_ad = AttributeDefinition::builder()
+            .attribute_name(&pk_name)
+            .attribute_type(ScalarAttributeType::S)
+            .build().unwrap();
+
+        let sk_ad = AttributeDefinition::builder()
+            .attribute_name(&sk_name)
+            .attribute_type(ScalarAttributeType::S)
+            .build().unwrap();
+
+    
+        let pk_ks = KeySchemaElement::builder()
+            .attribute_name(&pk_name)
+            .key_type(KeyType::Hash)
+            .build().unwrap();
+
+        let sk_ks = KeySchemaElement::builder()
+            .attribute_name(&sk_name)
+            .key_type(KeyType::Range)
+            .build().unwrap();
+    
+        let pt = ProvisionedThroughput::builder()
+            .read_capacity_units(10)
+            .write_capacity_units(5)
+            .build().unwrap();
+    
+        let create_table_response = client
+            .create_table()
+            .table_name(table_name)
+            .key_schema(pk_ks)
+            .key_schema(sk_ks)
+            .attribute_definitions(pk_ad)
+            .attribute_definitions(sk_ad)
+            .provisioned_throughput(pt)
+            .send()
+            .await;
+
+        create_table_response.map_err(|_e| AppError::Anyhow(anyhow!("ddb creation failed")))
     }
 }
 
