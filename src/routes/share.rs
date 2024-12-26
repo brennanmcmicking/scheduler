@@ -2,7 +2,7 @@ use axum::extract::{Host, OriginalUri, Path};
 use maud::{html, Markup};
 use tracing::instrument;
 
-use crate::{components, middlewares::Schedule};
+use crate::{components, middlewares::{Schedule, Session}};
 
 use super::AppError;
 
@@ -12,6 +12,7 @@ pub async fn get(
     Host(host): Host,
     Path(schedule_id): Path<String>,
     schedule: Schedule,
+    session: Option<Session>,
 ) -> Result<Markup, AppError> {
     Ok(components::base(html! {
         div class="flex h-full w-full items-center justify-center" {
@@ -24,5 +25,5 @@ pub async fn get(
                 }
             }
         }
-    }))
+    }, session))
 }

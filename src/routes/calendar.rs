@@ -40,7 +40,6 @@ pub async fn add_to_calendar(
     session: Option<Session>,
     Form(Add { course }): Form<Add>,
 ) -> Result<impl IntoResponse, AppError> {
-    let session = Some(Session { token: "asdf".to_string() });
     let mut selected = schedule.selected.clone();
     let course_exists = selected.courses.keys().any(|c| *c == course);
 
@@ -60,7 +59,7 @@ pub async fn add_to_calendar(
 
         match session {
             Some(sess) => { 
-                state.set_user_schedule(&sess.token, &schedule_id, &new_schedule).await;
+                state.set_user_schedule(&sess.user_id, &schedule_id, &new_schedule).await;
                 (
                     CookieJar::new(),
                     selected,
@@ -98,7 +97,6 @@ pub async fn rm_from_calendar(
     schedule: Schedule,
     session: Option<Session>,
 ) -> Result<impl IntoResponse, AppError> {
-    let session = Some(Session { token: "asdf".to_string() });
     let selected = schedule.selected.clone();
     // no-op if course is not in cookie
     if !selected.courses.keys().any(|c| *c == course) {
@@ -130,7 +128,7 @@ pub async fn rm_from_calendar(
 
     let jar = match session {
         Some(sess) => {
-            state.set_user_schedule(&sess.token, &schedule_id, &new_schedule).await;
+            state.set_user_schedule(&sess.user_id, &schedule_id, &new_schedule).await;
             CookieJar::new()
         },
         None => CookieJar::new().add(new_schedule.make_cookie(schedule_id.clone())),
@@ -166,7 +164,6 @@ pub async fn update_calendar(
     session: Option<Session>,
     Form(Update { crn }): Form<Update>,
 ) -> Result<impl IntoResponse, AppError> {
-    let session = Some(Session { token: "asdf".to_string() });
     let mut selected = schedule.selected.clone();
     let thin_section = ThinSection { crn };
     let section = state.get_section(&schedule.term, &thin_section)?;
@@ -197,7 +194,7 @@ pub async fn update_calendar(
 
     let jar = match session {
         Some(sess) => {
-            state.set_user_schedule(&sess.token, &schedule_id, &new_schedule).await;
+            state.set_user_schedule(&sess.user_id, &schedule_id, &new_schedule).await;
             CookieJar::new()
         },
         None => CookieJar::new().add(new_schedule.make_cookie(schedule_id.clone())),

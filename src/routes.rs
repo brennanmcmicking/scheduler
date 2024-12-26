@@ -8,6 +8,7 @@ use aws_sdk_dynamodb::{operation::create_table::CreateTableOutput, types::{Attri
 use axum::{
     http::{Request, StatusCode}, middleware, response::{IntoResponse, Response}, routing::{delete, get, patch, post, put}, Router
 };
+use google_oauth::AsyncClient;
 use r2d2_sqlite::SqliteConnectionManager;
 use regex::bytes::Regex;
 use rusqlite::{params, Connection, OpenFlags};
@@ -18,19 +19,21 @@ use tower_http::{
     LatencyUnit,
 };
 use tracing::{debug, debug_span, error};
+use uuid::Uuid;
 
 use crate::{
-    middlewares::{Schedule, SelectedCourses, Selection},
+    middlewares::{Schedule, ScheduleWithId, SelectedCourses, Selection, Session},
     scraper::{Course, Days, MeetingTime, Section, Term, ThinCourse, ThinSection},
 };
 
 mod calendar;
+mod import;
+mod login;
 mod preview;
 mod root;
-mod search;
 mod schedule;
+mod search;
 mod share;
-mod import;
 
 pub enum SectionType {
     Lecture,
@@ -62,14 +65,16 @@ pub fn selected_sections(courses: &[Course], selected: &SelectedCourses) -> Vec<
 }
 
 pub struct User {
-    schedules: Vec<Schedule>,
+    pub schedules: Vec<ScheduleWithId>,
 }
 
 trait UserStore {
-    async fn get_user(&self, token: &str) -> Result<User>;
-    async fn get_user_schedule(&self, token: &str, schedule_id: &str) -> Result<Schedule, AppError>;
-    async fn set_user_schedule(&self, token: &str, schedule_id: &str, schedule: &Schedule) -> Schedule;
-    async fn delete_user_schedule(&self, token: &str, schedule_id: &str);
+    async fn get_user(&self, user_id: &str) -> Result<User>;
+    async fn get_user_schedule(&self, user_id: &str, schedule_id: &str) -> Result<Schedule, AppError>;
+    async fn set_user_schedule(&self, user_id: &str, schedule_id: &str, schedule: &Schedule) -> Schedule;
+    async fn delete_user_schedule(&self, user_id: &str, schedule_id: &str);
+    async fn make_session(&self, user_id: &str, session_id: &str);
+    async fn get_session(&self, user_id: &str, session_id: &str) -> Option<Session>;
 }
 
 #[derive(Clone)]
@@ -86,19 +91,22 @@ impl DynamoUserStore {
 }
 
 impl UserStore for DynamoUserStore {
-    async fn get_user(&self, token: &str) -> Result<User> {
+    async fn get_user(&self, user_id: &str) -> Result<User> {
         debug!("get_user called");
         let results = self.ddb_client
             .query()
             .table_name("schedules")
-            .key_condition_expression("#t = :token")
-            .expression_attribute_names("#t", "token")
-            .expression_attribute_values(":token", AttributeValue::S(token.to_string()))
+            .key_condition_expression("#uid = :user_id")
+            .expression_attribute_names("#uid", "userId")
+            .expression_attribute_values(":user_id", AttributeValue::S(user_id.to_string()))
             .send()
             .await.unwrap();
 
-        fn parse(item: &HashMap<String, AttributeValue>) -> Schedule {
-            serde_json::from_str(item.get("schedule").unwrap().as_s().unwrap()).unwrap()
+        fn parse(item: &HashMap<String, AttributeValue>) -> ScheduleWithId {
+            ScheduleWithId {
+                schedule: serde_json::from_str(item.get("schedule").unwrap().as_s().unwrap()).unwrap(),
+                id: item.get("scheduleId").unwrap().as_s().unwrap().clone()
+            }
         }
 
         let u = User {
@@ -108,14 +116,14 @@ impl UserStore for DynamoUserStore {
         Ok(u)
     }
 
-    async fn get_user_schedule(&self, token: &str, schedule_id: &str) -> Result<Schedule, AppError> {
+    async fn get_user_schedule(&self, user_id: &str, schedule_id: &str) -> Result<Schedule, AppError> {
         debug!("get_user_schedule called");
         let results = self.ddb_client
             .query()
             .table_name("schedules")
-            .key_condition_expression("#t = :token AND scheduleId = :schedule_id")
-            .expression_attribute_names("#t", "token")
-            .expression_attribute_values(":token", AttributeValue::S(token.to_string()))
+            .key_condition_expression("#uid = :user_id AND scheduleId = :schedule_id")
+            .expression_attribute_names("#uid", "userId")
+            .expression_attribute_values(":user_id", AttributeValue::S(user_id.to_string()))
             .expression_attribute_values(":schedule_id", AttributeValue::S(schedule_id.to_string()))
             .send()
             .await.unwrap();
@@ -128,36 +136,77 @@ impl UserStore for DynamoUserStore {
         }
     }
     
-    async fn set_user_schedule(&self, token: &str, schedule_id: &str, schedule: &Schedule) -> Schedule {
-        let token_av = AttributeValue::S(token.to_string());
+    async fn set_user_schedule(&self, user_id: &str, schedule_id: &str, schedule: &Schedule) -> Schedule {
+        let user_id_av = AttributeValue::S(user_id.to_string());
         let schedule_id_av = AttributeValue::S(schedule_id.to_string());
         let schedule_av = AttributeValue::S(serde_json::to_string(&schedule).unwrap());
     
         let request = self.ddb_client
             .put_item()
             .table_name("schedules")
-            .item("token", token_av)
+            .item("userId", user_id_av)
             .item("scheduleId", schedule_id_av)
             .item("schedule", schedule_av);
 
-        let resp = request.send().await.unwrap();
+        let _resp = request.send().await.unwrap();
         // let attrs = resp.attributes().unwrap();
         // let schedule_av = attrs.get("schedule").cloned().unwrap();
         // serde_json::from_str(schedule_av.as_s().unwrap()).unwrap()
         schedule.clone().to_owned()
     }
 
-    async fn delete_user_schedule(&self, token: &str, schedule_id: &str) {
+    async fn delete_user_schedule(&self, user_id: &str, schedule_id: &str) {
         match self.ddb_client
             .delete_item()
             .table_name("schedules")
-            .key("token", AttributeValue::S(token.to_string()))
+            .key("user_id", AttributeValue::S(user_id.to_string()))
             .key("scheduleId", AttributeValue::S(schedule_id.to_string()))
             .send()
             .await {
-                std::result::Result::Ok(_out) => debug!("deleted schedule {}:{}", token, schedule_id),
-                Err(err) => error!("failed to delete schedule {}:{}, {}", token, schedule_id, err),
+                std::result::Result::Ok(_out) => debug!("deleted schedule {}:{}", user_id, schedule_id),
+                Err(err) => error!("failed to delete schedule {}:{}, {}", user_id, schedule_id, err),
             }
+    }
+
+    async fn make_session(&self, user_id: &str, session_id: &str) {
+        match self.ddb_client
+            .put_item()
+            .table_name("sessions")
+            .item("userId", AttributeValue::S(user_id.to_string()))
+            .item("sessionId", AttributeValue::S(session_id.to_string()))
+            // .item("ttl", ) // TODO: TTL
+            .send()
+            .await {
+                std::result::Result::Ok(_r) => debug!("created session {}:{}", user_id, session_id),
+                Err(err) => error!("failed to make session {}:{}, {}", user_id, session_id, err.to_string()), 
+            }
+    }
+
+    async fn get_session(&self, user_id: &str, session_id: &str) -> Option<Session> {
+        debug!("getting session {}:{}", user_id, session_id);
+        let results = self.ddb_client
+            .query()
+            .table_name("sessions")
+            .key_condition_expression("#uid = :user_id AND sessionId = :sessionId")
+            .expression_attribute_names("#uid", "userId")
+            .expression_attribute_values(":user_id", AttributeValue::S(user_id.to_string()))
+            .expression_attribute_values(":sessionId", AttributeValue::S(session_id.to_string()))
+            .send()
+            .await.unwrap();
+
+        let items = results.items?;
+        let result = items.first()?;
+        
+        match result.get("userId")?.as_s() {
+            std::result::Result::Ok(uid) => {
+                debug!("retrieved session for {}", uid);
+                Some(Session {
+                    user_id: uid.to_string(),
+                    session_id: session_id.to_owned(),
+                })
+            },
+            Err(_) => None,
+        }
     }
  }
 
@@ -165,7 +214,8 @@ impl UserStore for DynamoUserStore {
 #[derive(Clone)]
 pub struct DatabaseAppState {
     terms: HashMap<Term, r2d2::Pool<SqliteConnectionManager>>,
-    user_store: DynamoUserStore
+    user_store: DynamoUserStore,
+    google_client: AsyncClient,
 }
 
 impl DatabaseAppState {
@@ -180,7 +230,10 @@ impl DatabaseAppState {
 
         let table_list = ddb_client.list_tables().send().await.unwrap();
         if !table_list.table_names().contains(&"schedules".to_string()) {
-            let _ = DatabaseAppState::create_table(&ddb_client, "schedules", "token", "scheduleId").await.map_err(|_e| panic!());
+            let _ = DatabaseAppState::create_table(&ddb_client, "schedules", "userId", "scheduleId").await.map_err(|_e| panic!());
+        }
+        if !table_list.table_names().contains(&"sessions".to_string()) {
+            let _ = DatabaseAppState::create_table(&ddb_client, "sessions", "userId", "sessionId").await.map_err(|_e| panic!());
         }
     
         let user_store = DynamoUserStore::new(ddb_client);
@@ -210,7 +263,11 @@ impl DatabaseAppState {
 
             terms.insert(term, pool);
         }
-        Ok(Self { terms, user_store })
+
+        // not a secret
+        let google_client = AsyncClient::new("839626045148-u695skik1hvq9o41dactp72usr0i9bsh.apps.googleusercontent.com");
+
+        Ok(Self { terms, user_store, google_client })
     }
 
     pub fn get_terms(&self) -> Vec<Term> {
@@ -485,20 +542,36 @@ impl DatabaseAppState {
         self.terms.get(term).and_then(|p| p.get().ok())
     }
 
-    pub async fn get_user(&self, token: &str) -> std::result::Result<User, AppError> {
-        self.user_store.get_user(token).await.map_err(|_e| AppError::Anyhow(anyhow!("failed to get user")))
+    pub async fn get_user(&self, user_id: &str) -> std::result::Result<User, AppError> {
+        self.user_store.get_user(user_id).await.map_err(|_e| AppError::Anyhow(anyhow!("failed to get user")))
     }
 
-    pub async fn get_user_schedule(&self, token: &str, schedule_id: &str) -> Result<Schedule, AppError> {
-        self.user_store.get_user_schedule(token, schedule_id).await
+    pub async fn get_user_schedule(&self, user_id: &str, schedule_id: &str) -> Result<Schedule, AppError> {
+        self.user_store.get_user_schedule(user_id, schedule_id).await
     }
 
-    pub async fn set_user_schedule(&self, token: &str, schedule_id: &str, schedule: &Schedule) -> Schedule {
-        self.user_store.set_user_schedule(token, schedule_id, schedule).await
+    pub async fn set_user_schedule(&self, user_id: &str, schedule_id: &str, schedule: &Schedule) -> Schedule {
+        self.user_store.set_user_schedule(user_id, schedule_id, schedule).await
     }
 
-    pub async fn delete_user_schedule(&self, token: &str, schedule_id: &str) {
-        self.user_store.delete_user_schedule(token, schedule_id).await;
+    pub async fn delete_user_schedule(&self, user_id: &str, schedule_id: &str) {
+        self.user_store.delete_user_schedule(user_id, schedule_id).await;
+    }
+
+    pub async fn make_session(&self, user_id: &str) -> Session {
+        let session_id = Uuid::new_v4();
+        self.user_store.make_session(user_id, &session_id.to_string()).await;
+        Session {
+            user_id: user_id.to_string(),
+            session_id: session_id.to_string(),
+        }
+    }
+
+    pub async fn is_valid_session(&self, user_id: &str, session_id: &str) -> bool {
+        match self.user_store.get_session(user_id, session_id).await {
+            Some(session) => session.user_id == user_id,
+            None => false,
+        }
     }
 
     pub async fn create_table(
@@ -598,6 +671,12 @@ pub async fn make_app() -> Router {
         .nest_service("/assets", ServeDir::new("assets"))
         // `GET /` goes to `root`
         .route("/", get(root::root))
+        .nest(
+            "/login",
+            Router::new()
+            .route("/", get(login::get))
+            .route("/unsafe", post(login::post_unsafe))
+        )
         .route("/share/:schedule_id", get(share::get))
         .route("/import" , get(import::get))
         .route("/schedule", post(schedule::post))

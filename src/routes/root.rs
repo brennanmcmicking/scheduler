@@ -3,12 +3,16 @@ use maud::{html, Markup};
 use std::sync::Arc;
 use tracing::instrument;
 
-use crate::{components, middlewares::Schedules};
+use crate::{components, middlewares::{Schedules, Session}};
 
 use super::DatabaseAppState;
 
 #[instrument(level = "debug", skip(state))]
-pub async fn root(State(state): State<Arc<DatabaseAppState>>, schedules: Schedules) -> Markup {
+pub async fn root(
+    State(state): State<Arc<DatabaseAppState>>, 
+    schedules: Schedules,
+    session: Option<Session>,
+) -> Markup {
     components::base(html! {
         div class="flex flex-col gap-2 py-2 px-2 lg:px-64 h-full justify-items-center" {
             form action="/schedule" method="post" class="flex gap-2" {
@@ -26,5 +30,5 @@ pub async fn root(State(state): State<Arc<DatabaseAppState>>, schedules: Schedul
             }
             (components::schedules::view(schedules.schedules))
         }
-    })
+    }, session)
 }

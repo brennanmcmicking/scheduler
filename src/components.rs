@@ -1,5 +1,7 @@
 use maud::{html, Markup};
 
+use crate::{components, middlewares::Session};
+
 pub mod button;
 pub mod calendar;
 pub mod container;
@@ -7,7 +9,12 @@ pub mod search_result;
 pub mod schedules;
 pub mod courses;
 
-pub fn base(content: Markup) -> Markup {
+
+
+pub fn base(
+    content: Markup,
+    session: Option<Session>,
+) -> Markup {
     html! {
         html class="h-full" {
             head {
@@ -29,7 +36,16 @@ pub fn base(content: Markup) -> Markup {
                             div class="w-1/3 flex justify-center items-center" {
                                 "uvic scheduler"
                             }
-                            div class="w-1/3" {}
+                            div class="w-1/3 px-1 lg:py-2 flex flex-row-reverse" {
+                                @match session {
+                                    Some(_s) => a href="/login" class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 rounded-lg transition px-1 lg:p-1" {
+                                        "log out"
+                                    },
+                                    None => a href="/login" class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 rounded-lg transition px-1 lg:p-1" {
+                                        "log in"
+                                    },
+                                }
+                            }
                         }
                     }
                     div id="base-container" class="mx-auto w-full h-5/6 grow max-w-screen-2xl block" {
