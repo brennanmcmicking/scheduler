@@ -1,5 +1,5 @@
 use crate::{components::schedules, middlewares::{Schedule, Schedules, SelectedCourses, Session}, routes::selected_sections, scraper::Term};
-use axum::{debug_handler, extract::{Path, Request, State}, middleware::Next, response::IntoResponse};
+use axum::{debug_handler, debug_middleware, extract::{Path, Request, State}, middleware::Next, response::IntoResponse};
 use axum_extra::extract::{cookie::Cookie, CookieJar, Form};
 use maud::{html, Markup};
 use reqwest::StatusCode;
@@ -17,6 +17,7 @@ pub async fn get(
     Path(schedule_id): Path<String>,
     State(state): State<Arc<DatabaseAppState>>,
     schedule: Schedule,
+    session: Option<Session>,
 ) -> Result<Markup, AppError> {
     let search_courses = state.thin_courses(schedule.term)?;
     let courses = state.courses(schedule.term, &schedule.selected.thin_courses())?;
@@ -24,7 +25,7 @@ pub async fn get(
 
     Ok(components::base(html! {
         (components::container::main_container(&schedule_id, &search_courses, &courses, &sections))
-    }))
+    }, session))
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -48,13 +49,10 @@ pub async fn post(
         term,
         selected: SelectedCourses::default()
     };
-    let session = Some(Session {
-        token: "asdf".to_string()
-    });
     if state.get_terms().contains(&term) {
         match session {
             Some(sess) => {
-                state.set_user_schedule(&sess.token, &uuid.to_string(), &new_schedule).await;
+                state.set_user_schedule(&sess.user_id, &uuid.to_string(), &new_schedule).await;
                 Ok((
                     CookieJar::new(),
                     [("location", format!("/schedule/{}", uuid))],
@@ -79,15 +77,12 @@ pub async fn delete(
     session: Option<Session>,
     schedules: Schedules,
 ) -> Result<impl IntoResponse, AppError> {
-    let session = Some(Session {
-        token: "asdf".to_string()
-    });
     let new_schedules = schedules.schedules.into_iter().filter(|s| !s.id.eq(&schedule_id)).collect();
     let mut jar = CookieJar::new();
 
     match session {
         Some(sess) => {
-            state.delete_user_schedule(&sess.token, &schedule_id).await;
+            state.delete_user_schedule(&sess.user_id, &schedule_id).await;
         },
         None => { 
             let mut cookie = Cookie::build((schedule_id, "")).path("/").build();
@@ -103,17 +98,19 @@ pub async fn delete(
 }
 
 #[instrument(level = "debug")]
+#[debug_middleware]
 pub async fn not_found(
     req: Request,
     next: Next,
 ) -> Result<impl IntoResponse, AppError> {
+    // TODO: session extraction in middleware
     let res = next.run(req).await;
     if res.status() == StatusCode::NOT_FOUND {
         return Ok(components::base(html! {
             div class="h-full flex items-center justify-center" {
                 "That schedule could not be found."
             }
-        }).into_response());
+        }, None).into_response());
     }
 
     Ok(res)
