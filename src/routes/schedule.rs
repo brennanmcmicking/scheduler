@@ -52,7 +52,7 @@ pub async fn post(
     if state.get_terms().contains(&term) {
         match session {
             Some(sess) => {
-                state.set_user_schedule(&sess.user_id, &uuid.to_string(), &new_schedule).await;
+                let _ = state.set_user_schedule(&sess.user_id, &uuid.to_string(), &new_schedule).await;
                 Ok((
                     CookieJar::new(),
                     [("location", format!("/schedule/{}", uuid))],

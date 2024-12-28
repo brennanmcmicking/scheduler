@@ -1,5 +1,10 @@
-use std::{collections::BTreeMap, str::{self}, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    str::{self},
+    sync::Arc,
+};
 
+use aws_sdk_dynamodb::types::AttributeValue;
 use axum::{
     async_trait,
     extract::{FromRef, FromRequestParts, Path},
@@ -10,7 +15,12 @@ use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
-use crate::{routes::{AppError, DatabaseAppState}, scraper::{Term, ThinCourse, ThinSection}};
+use anyhow::anyhow;
+
+use crate::{
+    routes::DatabaseAppState,
+    scraper::{Term, ThinCourse, ThinSection},
+};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Selection {
@@ -79,6 +89,19 @@ impl<'a> TryFrom<&Cookie<'a>> for Schedule {
     }
 }
 
+impl TryFrom<&HashMap<String, AttributeValue>> for Schedule {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &HashMap<String, AttributeValue>) -> Result<Self, Self::Error> {
+        let raw = value
+            .get("schedule")
+            .ok_or(anyhow!("failed to get schedule value from attribute map"))?
+            .as_s()
+            .map_err(|_e| anyhow!("could not parse schedule attribute value to string"))?;
+
+        Ok(serde_json::from_str(raw)?)
+    }
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct SelectedCourses {
@@ -103,15 +126,17 @@ pub struct Session {
 
 impl Session {
     pub async fn is_validate(&self, state: &Arc<DatabaseAppState>) -> bool {
-        state.is_valid_session(&self.user_id, &self.session_id).await
+        state
+            .is_valid_session(&self.user_id, &self.session_id)
+            .await
     }
 }
 
 #[async_trait]
-impl<S: Send + Sync> FromRequestParts<S> for Session 
-where 
+impl<S: Send + Sync> FromRequestParts<S> for Session
+where
     Arc<DatabaseAppState>: FromRef<S>,
-    S: Send + Sync 
+    S: Send + Sync,
 {
     type Rejection = StatusCode;
 
@@ -132,11 +157,11 @@ where
                             true => Ok(sess),
                             false => Err(StatusCode::BAD_REQUEST),
                         }
-                    },
-                    None => Err(StatusCode::BAD_REQUEST)
+                    }
+                    None => Err(StatusCode::BAD_REQUEST),
                 }
-            },
-            None => Err(StatusCode::NOT_FOUND)
+            }
+            None => Err(StatusCode::NOT_FOUND),
         }
     }
 }
@@ -148,9 +173,9 @@ struct SchedulePath {
 
 #[async_trait] // needed to prevent lifetime errors
 impl<S: Send + Sync> FromRequestParts<S> for Schedule
-where 
+where
     Arc<DatabaseAppState>: FromRef<S>,
-    S: Send + Sync
+    S: Send + Sync,
 {
     type Rejection = StatusCode;
 
@@ -158,13 +183,12 @@ where
         parts: &mut request::Parts,
         state: &S,
     ) -> Result<Self, Self::Rejection> {
-        let Path(SchedulePath { schedule_id }) =
-            Path::from_request_parts(parts, state)
-                .await
-                .map_err(|err| {
-                    tracing::trace!("failed to get schedule from path: {:?}", err);
-                    StatusCode::NOT_FOUND
-                })?;
+        let Path(SchedulePath { schedule_id }) = Path::from_request_parts(parts, state)
+            .await
+            .map_err(|err| {
+                tracing::trace!("failed to get schedule from path: {:?}", err);
+                StatusCode::NOT_FOUND
+            })?;
 
         let session = Session::from_request_parts(parts, state).await;
 
@@ -173,16 +197,19 @@ where
         match session {
             Ok(session) => {
                 let state = Arc::from_ref(state);
-                state.get_user_schedule(&session.user_id, schedule_id.as_str()).await.map_err(|_e| StatusCode::NOT_FOUND)
-            },
+                state
+                    .get_user_schedule(&session.user_id, schedule_id.as_str())
+                    .await
+                    .map_err(|_e| StatusCode::NOT_FOUND)
+            }
             Err(_e) => {
                 let jar = CookieJar::from_request_parts(parts, state).await.unwrap();
                 match jar.get(&schedule_id) {
                     Some(cookie) => Ok(Schedule::try_from(cookie).map_err(|err| {
-                            tracing::trace!("failed to parse: {:?}", err);
-                            debug!("failed to parse: {:?}", err);
-                            StatusCode::NOT_FOUND
-                        })?),
+                        tracing::trace!("failed to parse: {:?}", err);
+                        debug!("failed to parse: {:?}", err);
+                        StatusCode::NOT_FOUND
+                    })?),
                     None => Err(StatusCode::NOT_FOUND),
                 }
             }
@@ -202,10 +229,10 @@ pub struct Schedules {
 }
 
 #[async_trait]
-impl<S: Send + Sync> FromRequestParts<S> for Schedules 
-where 
+impl<S: Send + Sync> FromRequestParts<S> for Schedules
+where
     Arc<DatabaseAppState>: FromRef<S>,
-    S: Send + Sync
+    S: Send + Sync,
 {
     type Rejection = StatusCode;
 
@@ -218,27 +245,29 @@ where
         match session {
             Ok(session) => {
                 let state = Arc::from_ref(state);
-                let user = state.get_user(&session.user_id).await.map_err(|_e| StatusCode::NOT_FOUND)?;
+                let user = state
+                    .get_user(&session.user_id)
+                    .await
+                    .map_err(|_e| StatusCode::NOT_FOUND)?;
                 Ok(Schedules {
-                    schedules: user.schedules
+                    schedules: user.schedules,
                 })
-            },
+            }
             Err(_e) => {
                 let jar = CookieJar::from_request_parts(parts, state).await.unwrap();
                 Ok(Schedules {
-                    schedules: jar.iter().filter_map(|cookie| {
-                        match Schedule::try_from(cookie) {
+                    schedules: jar
+                        .iter()
+                        .filter_map(|cookie| match Schedule::try_from(cookie) {
                             Ok(schedule) => Some(ScheduleWithId {
                                 schedule,
-                                id: cookie.name().to_string()
+                                id: cookie.name().to_string(),
                             }),
-                            Err(_e) => None
-                        }
-                    })
-                    .collect()
+                            Err(_e) => None,
+                        })
+                        .collect(),
                 })
             }
         }
-
     }
 }
