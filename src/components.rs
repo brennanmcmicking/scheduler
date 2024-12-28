@@ -1,6 +1,6 @@
 use maud::{html, Markup};
 
-use crate::{components, middlewares::Session};
+use crate::middlewares::Session;
 
 pub mod button;
 pub mod calendar;

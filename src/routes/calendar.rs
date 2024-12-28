@@ -59,7 +59,7 @@ pub async fn add_to_calendar(
 
         match session {
             Some(sess) => { 
-                state.set_user_schedule(&sess.user_id, &schedule_id, &new_schedule).await;
+                let _ = state.set_user_schedule(&sess.user_id, &schedule_id, &new_schedule).await;
                 (
                     CookieJar::new(),
                     selected,
@@ -128,7 +128,7 @@ pub async fn rm_from_calendar(
 
     let jar = match session {
         Some(sess) => {
-            state.set_user_schedule(&sess.user_id, &schedule_id, &new_schedule).await;
+            let _ = state.set_user_schedule(&sess.user_id, &schedule_id, &new_schedule).await;
             CookieJar::new()
         },
         None => CookieJar::new().add(new_schedule.make_cookie(schedule_id.clone())),
@@ -194,7 +194,7 @@ pub async fn update_calendar(
 
     let jar = match session {
         Some(sess) => {
-            state.set_user_schedule(&sess.user_id, &schedule_id, &new_schedule).await;
+            let _ = state.set_user_schedule(&sess.user_id, &schedule_id, &new_schedule).await;
             CookieJar::new()
         },
         None => CookieJar::new().add(new_schedule.make_cookie(schedule_id.clone())),
