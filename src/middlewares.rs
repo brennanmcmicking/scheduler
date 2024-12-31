@@ -73,7 +73,7 @@ impl TryFrom<String> for Schedule {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         let schedule_json = STANDARD_NO_PAD.decode(value)?;
-        debug!("{}", str::from_utf8(&schedule_json).unwrap());
+        debug!("{}", str::from_utf8(&schedule_json)?);
         let userstate = serde_json::from_slice(&schedule_json)?;
         Ok(userstate)
     }
