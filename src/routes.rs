@@ -761,7 +761,8 @@ pub async fn make_app() -> Router {
             "/login",
             Router::new()
                 .route("/", get(login::get))
-                .route("/unsafe", post(login::post_unsafe)),
+                .route("/unsafe", post(login::post_unsafe))
+                .route("/google", post(login::post_google)),
         )
         .route("/share/:schedule_id", get(share::get))
         .route("/import", get(import::get))
