@@ -870,7 +870,7 @@ pub async fn make_app(stage: Stage, use_local_dynamo: bool) -> Router {
                         .route("/", delete(calendar::rm_from_calendar))
                         .route("/preview", get(preview::preview)),
                 )
-                .layer(middleware::from_fn(schedule::not_found)),
+                .layer(middleware::from_fn_with_state(state.clone(), schedule::not_found)),
         )
         .with_state(state)
         .layer(middleware::from_fn(unauth_redirect))
