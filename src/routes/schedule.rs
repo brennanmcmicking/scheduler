@@ -96,20 +96,21 @@ pub async fn delete(
     ))
 }
 
-#[instrument(level = "debug")]
+#[instrument(level = "debug", skip(_state))]
 #[debug_middleware]
 pub async fn not_found(
+    State(_state): State<Arc<DatabaseAppState>>,
+    session: Option<Session>,
     req: Request,
     next: Next,
 ) -> Result<impl IntoResponse, AppError> {
-    // TODO: session extraction in middleware
     let res = next.run(req).await;
     if res.status() == StatusCode::NOT_FOUND {
         return Ok(components::base(html! {
             div class="h-full flex items-center justify-center" {
                 "That schedule could not be found."
             }
-        }, None).into_response());
+        }, session).into_response());
     }
 
     Ok(res)
