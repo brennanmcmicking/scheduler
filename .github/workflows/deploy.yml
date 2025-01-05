@@ -1,0 +1,56 @@
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  docker-push:
+    name: Push Docker Image to ECR
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+          aws-region: "us-east-1"
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: scheduler
+          IMAGE_TAG: main
+        run: |
+          docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+
+  ec2-deploy: 
+    name: Deploy new Docker image on EC2 instance
+    needs: docker-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: AWS SSM Send-Command
+        uses: peterkimzz/aws-ssm-send-command@v1.1.1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+          aws-region: us-east-1
+          instance-ids: i-0ed459b26c0f18cbf
+          working-directory: /home/ec2-user/scheduler
+          command: |
+            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 446708209687.dkr.ecr.us-east-1.amazonaws.com
+            docker-compose stop
+            docker-compose rm -f
+            docker-compose pull
+            docker-compose up -d
+            docker image prune -af
