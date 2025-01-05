@@ -1,15 +1,24 @@
-use std::{net::SocketAddr, path::PathBuf};
+use std::{env, net::SocketAddr, path::PathBuf};
 
 use anyhow::{anyhow, Context};
 use axum::{extract::Host, handler::HandlerWithoutStateExt, http::Uri, response::Redirect, BoxError};
 use axum_server::tls_rustls::RustlsConfig;
 use reqwest::StatusCode;
-use scheduler::routes;
+use scheduler::routes::{self, Stage};
 use tracing::{debug, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let stage = env::var("IS_PROD").map_or(Stage::LOCAL, |v| 
+        match v == "true" {
+            true => Stage::PROD,
+            false => Stage::LOCAL
+        }
+    );
+    let use_local_dynamo = env::var("USE_LOCAL_DYNAMO").map_or(false, |v| 
+       v == "true"
+    );
     // initialize tracing
     tracing_subscriber::registry()
         .with(
@@ -28,7 +37,7 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     // build our application with a route
-    let app = routes::make_app().await;
+    let app = routes::make_app(stage, use_local_dynamo).await;
     // run our app with hyper, listening globally on port
     let config = RustlsConfig::from_pem_file(
         PathBuf::from("/scheduler/fullchain.pem"), 

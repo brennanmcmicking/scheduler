@@ -41,3 +41,4 @@ uuid = { version = "1.11.0", features = ["v4", "fast-rng"] }
 aws-sdk-dynamodb = "1.56.0"
 aws-config = "1.5.11"
 google-oauth = "1.11.3"
+serenity = "0.12.4"
