@@ -1,4 +1,4 @@
-use std::{collections::HashMap, env::current_dir, ops::DerefMut, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, env::{self, current_dir}, ops::DerefMut, path::PathBuf, sync::Arc};
 
 use anyhow::{anyhow, Context, Result};
 use aws_config::meta::region::RegionProviderChain;
@@ -13,16 +13,14 @@ use aws_sdk_dynamodb::{
 };
 
 use axum::{
-    http::{Request, StatusCode},
-    middleware,
-    response::{IntoResponse, Response},
-    routing::{delete, get, patch, post, put},
-    Router,
+    extract::Request, http::StatusCode, middleware::{self, Next}, response::{IntoResponse, Response}, routing::{delete, get, patch, post, put}, Router
 };
+use axum_extra::extract::{cookie::Cookie, CookieJar};
 use google_oauth::AsyncClient;
 use r2d2_sqlite::SqliteConnectionManager;
 use regex::bytes::Regex;
 use rusqlite::{params, Connection, OpenFlags};
+use serde::{Deserialize, Serialize};
 use tokio::fs;
 use tower_http::{
     services::ServeDir,
@@ -33,7 +31,7 @@ use tracing::{debug, debug_span, error};
 use uuid::Uuid;
 
 use crate::{
-    middlewares::{Schedule, ScheduleWithId, SelectedCourses, Selection, Session},
+    middlewares::{Schedule, ScheduleWithId, SelectedCourses, Selection},
     scraper::{Course, Days, MeetingTime, Section, Term, ThinCourse, ThinSection},
 };
 
@@ -79,28 +77,34 @@ pub struct User {
     pub schedules: Vec<ScheduleWithId>,
 }
 
-trait UserStore {
-    async fn get_user(&self, user_id: &str) -> Result<User>;
-    async fn get_user_schedule(&self, user_id: &str, schedule_id: &str) -> Result<Schedule>;
-    async fn set_user_schedule(
+pub trait UserStore: Clone {
+    fn get_user(&self, user_id: &str) -> impl std::future::Future<Output = Result<User>> + Send;
+    fn get_user_schedule(&self, user_id: &str, schedule_id: &str) -> impl std::future::Future<Output = Result<Schedule>> + Send;
+    fn set_user_schedule(
         &self,
         user_id: &str,
         schedule_id: &str,
         schedule: &Schedule,
-    ) -> Result<Schedule>;
-    async fn delete_user_schedule(&self, user_id: &str, schedule_id: &str);
-    async fn make_session(&self, user_id: &str, session_id: &str);
-    async fn get_session(&self, user_id: &str, session_id: &str) -> Option<Session>;
+    ) -> impl std::future::Future<Output = Result<Schedule>> + Send;
+    fn delete_user_schedule(&self, user_id: &str, schedule_id: &str) -> impl std::future::Future<Output = ()> + Send;
+    fn make_session(&self, user_id: &str, session_id: &str) -> impl std::future::Future<Output = ()> + Send;
+    fn has_session(&self, user_id: &str, session_id: &str) -> impl std::future::Future<Output = Result<bool>> + Send;
 }
 
 #[derive(Clone)]
-struct DynamoUserStore {
+pub struct DynamoUserStore {
     ddb_client: aws_sdk_dynamodb::Client,
+    sessions_table_name: String,
+    schedules_table_name: String,
 }
 
 impl DynamoUserStore {
-    pub fn new(ddb_client: Client) -> DynamoUserStore {
-        Self { ddb_client }
+    pub fn new(ddb_client: Client, sessions_table_name: &str, schedules_table_name: &str) -> DynamoUserStore {
+        Self { 
+            ddb_client,
+            sessions_table_name: sessions_table_name.to_string(),
+            schedules_table_name: schedules_table_name.to_string(),
+         }
     }
 }
 
@@ -110,7 +114,7 @@ impl UserStore for DynamoUserStore {
         let results = self
             .ddb_client
             .query()
-            .table_name("schedules")
+            .table_name(&self.schedules_table_name)
             .key_condition_expression("#uid = :user_id")
             .expression_attribute_names("#uid", "userId")
             .expression_attribute_values(":user_id", AttributeValue::S(user_id.to_string()))
@@ -135,10 +139,11 @@ impl UserStore for DynamoUserStore {
 
     async fn get_user_schedule(&self, user_id: &str, schedule_id: &str) -> Result<Schedule> {
         debug!("get_user_schedule called");
+        // TODO convert to GetItem request?
         let results = self
             .ddb_client
             .query()
-            .table_name("schedules")
+            .table_name(&self.schedules_table_name)
             .key_condition_expression("#uid = :user_id AND scheduleId = :schedule_id")
             .expression_attribute_names("#uid", "userId")
             .expression_attribute_values(":user_id", AttributeValue::S(user_id.to_string()))
@@ -165,7 +170,7 @@ impl UserStore for DynamoUserStore {
         let request = self
             .ddb_client
             .update_item()
-            .table_name("schedules")
+            .table_name(&self.schedules_table_name)
             .key("userId", user_id_av)
             .key("scheduleId", schedule_id_av)
             .update_expression("SET schedule = :schedule")
@@ -193,7 +198,7 @@ impl UserStore for DynamoUserStore {
         match self
             .ddb_client
             .delete_item()
-            .table_name("schedules")
+            .table_name(&self.schedules_table_name)
             .key("user_id", AttributeValue::S(user_id.to_string()))
             .key("scheduleId", AttributeValue::S(schedule_id.to_string()))
             .send()
@@ -211,7 +216,7 @@ impl UserStore for DynamoUserStore {
         match self
             .ddb_client
             .put_item()
-            .table_name("sessions")
+            .table_name(&self.sessions_table_name)
             .item("userId", AttributeValue::S(user_id.to_string()))
             .item("sessionId", AttributeValue::S(session_id.to_string()))
             // .item("ttl", ) // TODO: TTL
@@ -228,12 +233,12 @@ impl UserStore for DynamoUserStore {
         }
     }
 
-    async fn get_session(&self, user_id: &str, session_id: &str) -> Option<Session> {
+    async fn has_session(&self, user_id: &str, session_id: &str) -> Result<bool> {
         debug!("getting session {}:{}", user_id, session_id);
         let results = self
             .ddb_client
             .query()
-            .table_name("sessions")
+            .table_name(&self.sessions_table_name)
             .key_condition_expression("#uid = :user_id AND sessionId = :sessionId")
             .expression_attribute_names("#uid", "userId")
             .expression_attribute_values(":user_id", AttributeValue::S(user_id.to_string()))
@@ -242,54 +247,83 @@ impl UserStore for DynamoUserStore {
             .await
             .unwrap();
 
-        let items = results.items?;
-        let result = items.first()?;
+        let items = results.items.ok_or(anyhow!("could not get items from ddb response"))?;
+        Ok(!items.is_empty())
+    }
+}
 
-        match result.get("userId")?.as_s() {
-            Ok(uid) => {
-                debug!("retrieved session for {}", uid);
-                Some(Session {
-                    user_id: uid.to_string(),
-                    session_id: session_id.to_owned(),
-                })
-            }
-            Err(_) => None,
-        }
+#[derive(Clone, Serialize)]
+struct DiscordTokenRequestBody {
+    grant_type: String,
+    code: String,
+    redirect_uri: String,
+}
+
+#[derive(Clone, Deserialize)]
+struct DiscordTokenResponseBody {
+    access_token: String,
+}
+
+#[derive(Clone, Deserialize)]
+struct DiscordUser {
+    id: String,
+    username: String,
+}
+
+#[derive(Clone)]
+struct DiscordClient {
+    http_client: reqwest::Client,
+    redirect_uri: String,
+    client_id: String,
+    client_secret: String,
+}
+
+impl DiscordClient {
+    pub async fn get_user(&self, code: &str) -> Result<DiscordUser> {
+        let body = DiscordTokenRequestBody {
+            grant_type: "authorization_code".to_owned(),
+            code: code.to_string(),
+            redirect_uri: self.redirect_uri.clone(),
+        };
+        debug!("{}", serde_json::to_string_pretty(&body)?);
+        debug!("requesting data for code={}", body.code);
+        let response = self.http_client.post("https://discord.com/api/oauth2/token")
+            .basic_auth(&self.client_id, Some(&self.client_secret))
+            .form(&body)
+            .send()
+            .await?
+            .text()
+            .await?;
+        debug!("response text={}", response);
+
+        let response = serde_json::from_str::<DiscordTokenResponseBody>(&response)
+            .map_err(|e| anyhow!("failed to deserialize token response body, error={}", e))?;
+
+        debug!("got auth token={}", response.access_token);
+
+        let user = self.http_client.get("https://discord.com/api/users/@me")
+            .bearer_auth(response.access_token)
+            .send()
+            .await?
+            .json::<DiscordUser>()
+            .await?;
+
+        Ok(user)
     }
 }
 
 #[derive(Clone)]
-pub struct DatabaseAppState {
+pub struct DatabaseAppState
+{
     terms: HashMap<Term, r2d2::Pool<SqliteConnectionManager>>,
     user_store: DynamoUserStore,
     google_client: AsyncClient,
+    discord_client: DiscordClient,
+    stage: Stage,
 }
 
 impl DatabaseAppState {
-    pub async fn new(dir: PathBuf) -> Result<Self> {
-        let region = RegionProviderChain::default_provider().or_else("us-east-1");
-        let ddb_config = aws_config::defaults(BehaviorVersion::latest())
-            .region(region)
-            .endpoint_url("http://localhost:8000")
-            .load()
-            .await;
-        let ddb_client = aws_sdk_dynamodb::Client::new(&ddb_config);
-
-        let table_list = ddb_client.list_tables().send().await.unwrap();
-        if !table_list.table_names().contains(&"schedules".to_string()) {
-            let _ =
-                DatabaseAppState::create_table(&ddb_client, "schedules", "userId", "scheduleId")
-                    .await
-                    .map_err(|_e| panic!());
-        }
-        if !table_list.table_names().contains(&"sessions".to_string()) {
-            let _ = DatabaseAppState::create_table(&ddb_client, "sessions", "userId", "sessionId")
-                .await
-                .map_err(|_e| panic!());
-        }
-
-        let user_store = DynamoUserStore::new(ddb_client);
-
+    pub async fn new(dir: PathBuf, stage: Stage, user_store: DynamoUserStore, discord_secret: &str) -> Result<Self> {
         let mut terms = HashMap::new();
 
         let mut entries = fs::read_dir(dir).await?;
@@ -321,10 +355,23 @@ impl DatabaseAppState {
             "839626045148-u695skik1hvq9o41dactp72usr0i9bsh.apps.googleusercontent.com",
         );
 
+        let discord_redirect_uri = match stage {
+            Stage::LOCAL => "http://localhost:8443/login/discord".to_string(),
+            Stage::PROD => "https://scheduler.brennanmcmicking.net/login/discord".to_string(),
+        };
+        let discord_client = DiscordClient {
+            http_client: reqwest::Client::new(),
+            redirect_uri: discord_redirect_uri,
+            client_id: "1324110828810797108".to_string(),
+            client_secret: discord_secret.to_string(),
+        };
+
         Ok(Self {
             terms,
             user_store,
             google_client,
+            discord_client,
+            stage,
         })
     }
 
@@ -627,22 +674,16 @@ impl DatabaseAppState {
             .await;
     }
 
-    pub async fn make_session(&self, user_id: &str) -> Session {
-        let session_id = Uuid::new_v4();
+    pub async fn make_session(&self, user_id: &str) -> String {
+        let session_id = Uuid::new_v4().to_string();
         self.user_store
-            .make_session(user_id, &session_id.to_string())
+            .make_session(user_id, &session_id)
             .await;
-        Session {
-            user_id: user_id.to_string(),
-            session_id: session_id.to_string(),
-        }
+        session_id
     }
 
     pub async fn is_valid_session(&self, user_id: &str, session_id: &str) -> bool {
-        match self.user_store.get_session(user_id, session_id).await {
-            Some(session) => session.user_id == user_id,
-            None => false,
-        }
+        self.user_store.has_session(user_id, session_id).await.unwrap_or(false)
     }
 
     pub async fn create_table(
@@ -744,11 +785,58 @@ impl From<anyhow::Error> for AppError {
     }
 }
 
-pub async fn make_app() -> Router {
+#[derive(Clone)]
+pub enum Stage {
+    LOCAL,
+    PROD
+}
+
+pub async fn make_app(stage: Stage, use_local_dynamo: bool) -> Router {
+    let region = RegionProviderChain::default_provider().or_else("us-east-1");
+    let ddb_config = match use_local_dynamo {
+        false => aws_config::defaults(BehaviorVersion::latest())
+            .region(region)
+            .load()
+            .await,
+        true => aws_config::defaults(BehaviorVersion::latest())
+            .region(region)
+            .endpoint_url("http://localhost:8000")
+            .test_credentials()
+            .load()
+            .await
+    };
+    let schedules_table_name = match stage {
+        Stage::PROD => "schedules".to_string(),
+        Stage::LOCAL => "schedules-dev".to_string(),
+    };
+    let sessions_table_name = match stage {
+        Stage::PROD => "sessions".to_string(),
+        Stage::LOCAL => "sessions-dev".to_string(),
+    };
+
+    let ddb_client = aws_sdk_dynamodb::Client::new(&ddb_config);
+
+    let table_list = ddb_client.list_tables().send().await.unwrap();
+    if !table_list.table_names().contains(&schedules_table_name) {
+        let _ =
+            DatabaseAppState::create_table(&ddb_client, &schedules_table_name, "userId", "scheduleId")
+                .await
+                .map_err(|_e| panic!());
+    }
+    if !table_list.table_names().contains(&sessions_table_name) {
+        let _ = DatabaseAppState::create_table(&ddb_client, &sessions_table_name, "userId", "sessionId")
+            .await
+            .map_err(|_e| panic!());
+    }
+
+    let user_store = DynamoUserStore::new(ddb_client, &sessions_table_name, &schedules_table_name);
+
     type State = Arc<DatabaseAppState>;
 
+    let discord_secret = env::var("DISCORD_SECRET").unwrap_or("".to_string());
+
     let state: State = Arc::new(
-        DatabaseAppState::new(current_dir().expect("couldn't access current directory"))
+        DatabaseAppState::new(current_dir().expect("couldn't access current directory"), stage, user_store, &discord_secret)
             .await
             .expect("failed to initialize database state"),
     );
@@ -761,8 +849,8 @@ pub async fn make_app() -> Router {
             "/login",
             Router::new()
                 .route("/", get(login::get))
-                .route("/unsafe", post(login::post_unsafe))
-                .route("/google", post(login::post_google)),
+                .route("/google", post(login::post_google))
+                .route("/discord", get(login::get_discord)),
         )
         .route("/share/:schedule_id", get(share::get))
         .route("/import", get(import::get))
@@ -784,8 +872,8 @@ pub async fn make_app() -> Router {
                 )
                 .layer(middleware::from_fn(schedule::not_found)),
         )
-        // TODO: add .fallback() handler
         .with_state(state)
+        .layer(middleware::from_fn(unauth_redirect))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(|request: &Request<_>| {
@@ -797,4 +885,22 @@ pub async fn make_app() -> Router {
                 })
                 .on_response(DefaultOnResponse::new().latency_unit(LatencyUnit::Micros)),
         )
+}
+
+async fn unauth_redirect(
+    req: Request,
+    next: Next,
+) -> Result<impl IntoResponse, AppError> {
+    let res = next.run(req).await;
+    if res.status() == StatusCode::UNAUTHORIZED {
+        // if there was an unauthorized response then delete the session cookie and redirect to the login page
+        let cookie = Cookie::build(("session", "")).removal().build();
+        return Ok((
+            CookieJar::new().add(cookie),
+            [("location", "/")],
+            StatusCode::MOVED_PERMANENTLY,
+        ).into_response());
+    }
+
+    Ok(res)
 }

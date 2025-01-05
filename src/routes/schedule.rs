@@ -1,5 +1,5 @@
 use crate::{components::schedules, middlewares::{Schedule, Schedules, SelectedCourses, Session}, routes::selected_sections, scraper::Term};
-use axum::{debug_handler, debug_middleware, extract::{Path, Request, State}, middleware::Next, response::IntoResponse};
+use axum::{debug_middleware, extract::{Path, Request, State}, middleware::Next, response::IntoResponse};
 use axum_extra::extract::{cookie::Cookie, CookieJar, Form};
 use maud::{html, Markup};
 use reqwest::StatusCode;
@@ -36,7 +36,6 @@ pub struct Create {
 
 
 #[instrument(level = "debug", skip(state))]
-#[debug_handler]
 pub async fn post(
     State(state): State<Arc<DatabaseAppState>>,
     session: Option<Session>,

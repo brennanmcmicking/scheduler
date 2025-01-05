@@ -1,6 +1,6 @@
 use maud::{html, Markup};
 
-use crate::middlewares::Session;
+use crate::middlewares::{Authority, Session};
 
 pub mod button;
 pub mod calendar;
@@ -9,12 +9,31 @@ pub mod search_result;
 pub mod schedules;
 pub mod courses;
 
-
-
 pub fn base(
     content: Markup,
     session: Option<Session>,
 ) -> Markup {
+    let header_right = match session {
+        Some(session) => html!(
+            div class="grow flex gap-2 justify-end" {
+                @match session.authority { 
+                    Authority::DISCORD => img src="/assets/discord-mark-white.svg" class="rounded p-1 lg:p-2 bg-[#5865F2]" {},
+                    Authority::GOOGLE => img src="/assets/google-g-logo.svg" class="rounded-full lg:p-2 bg-white" {},
+                }
+                div class="hidden lg:flex items-center" {
+                    (session.username)
+                }
+            }
+            a href="/login" class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 rounded-lg transition px-1 lg:p-1" {
+                "log out"
+            }
+        ),
+        None => html!(
+            a href="/login" class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 rounded-lg transition px-1 lg:p-1" {
+                "log in"
+            }
+        ),
+    };
     html! {
         html class="h-full" {
             head {
@@ -27,24 +46,17 @@ pub fn base(
             body hx-ext="multi-swap" class="h-full w-full bg-slate-100 dark:bg-neutral-900 dark:text-white overflow-y-none" {
                 div id="app-container" class="h-full flex flex-col" {
                     div class="shadow-lg w-full bg-white dark:bg-neutral-800 block" {
-                        div id="header-container" class="max-w-screen-2xl w-full mx-auto flex" {
+                        div id="header-container" class="max-w-screen-2xl w-full mx-auto flex max-h-6 lg:max-h-12" {
                             div class="w-1/3 px-1 lg:py-2" {
-                                a href="/" class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 rounded-lg transition px-1 lg:p-1" {
+                                a href="/" class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 rounded-lg transition px-1 lg:p-1 float-left" {
                                     "home"
                                 }
                             }
                             div class="w-1/3 flex justify-center items-center" {
                                 "uvic scheduler"
                             }
-                            div class="w-1/3 px-1 lg:py-2 flex flex-row-reverse" {
-                                @match session {
-                                    Some(_s) => a href="/login" class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 rounded-lg transition px-1 lg:p-1" {
-                                        "log out"
-                                    },
-                                    None => a href="/login" class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 rounded-lg transition px-1 lg:p-1" {
-                                        "log in"
-                                    },
-                                }
+                            div class="w-1/3 px-1 lg:py-2 flex justify-end gap-2" {
+                                (header_right)
                             }
                         }
                     }

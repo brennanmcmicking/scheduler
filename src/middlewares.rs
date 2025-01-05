@@ -119,8 +119,16 @@ impl SelectedCourses {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub enum Authority {
+    DISCORD,
+    GOOGLE,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Session {
     pub user_id: String,
+    pub username: String,
+    pub authority: Authority,
     pub session_id: String,
 }
 
@@ -129,6 +137,11 @@ impl Session {
         state
             .is_valid_session(&self.user_id, &self.session_id)
             .await
+    }
+
+    pub fn to_base64(&self) -> String {
+        let json = serde_json::to_string(&self).expect("failed to serialize to json");
+        STANDARD_NO_PAD.encode(json)
     }
 }
 
@@ -149,19 +162,23 @@ where
         match jar.get("session") {
             Some(cookie) => {
                 debug!("{}", cookie.value());
-                let result: Result<Session, _> = serde_json::from_str(cookie.value());
+                let session_json = STANDARD_NO_PAD.decode(cookie.value()).map_err(|e| {
+                    debug!("could not base64-decode session {}, {}", cookie.value(), e);
+                    StatusCode::BAD_REQUEST
+                })?;
+                let result: Result<Session, _> = serde_json::from_slice(&session_json);
                 match result.ok() {
                     Some(sess) => {
                         let state = Arc::from_ref(state);
                         match sess.is_validate(&state).await {
                             true => Ok(sess),
-                            false => Err(StatusCode::BAD_REQUEST),
+                            false => Err(StatusCode::UNAUTHORIZED),
                         }
                     }
-                    None => Err(StatusCode::BAD_REQUEST),
+                    None => Err(StatusCode::UNAUTHORIZED),
                 }
             }
-            None => Err(StatusCode::NOT_FOUND),
+            None => Err(StatusCode::UNAUTHORIZED),
         }
     }
 }
@@ -172,7 +189,7 @@ struct SchedulePath {
 }
 
 #[async_trait] // needed to prevent lifetime errors
-impl<S: Send + Sync> FromRequestParts<S> for Schedule
+impl<S> FromRequestParts<S> for Schedule
 where
     Arc<DatabaseAppState>: FromRef<S>,
     S: Send + Sync,
@@ -269,5 +286,25 @@ where
                 })
             }
         }
+    }
+}
+
+pub struct GoogleCsrfCookie {
+    pub value: String,
+}
+
+#[async_trait]
+impl<S: Send + Sync> FromRequestParts<S> for GoogleCsrfCookie {
+    type Rejection = StatusCode;
+
+    async fn from_request_parts(
+        parts: &mut request::Parts,
+        state: &S,
+    ) -> Result<Self, Self::Rejection> {
+        let jar = CookieJar::from_request_parts(parts, state).await.unwrap();
+        let csrf_cookie = jar.get("g_csrf_token").ok_or(StatusCode::BAD_REQUEST)?;
+        Ok(GoogleCsrfCookie {
+            value: csrf_cookie.value().to_owned(),
+        })
     }
 }
