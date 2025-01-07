@@ -74,7 +74,7 @@ pub struct GoogleLoginRequest {
 pub async fn post_google(
     State(state): State<Arc<DatabaseAppState>>,
     csrf_cookie: GoogleCsrfCookie,
-    Form( GoogleLoginRequest { g_csrf_token, credential}): Form<GoogleLoginRequest>,
+    Form( GoogleLoginRequest { g_csrf_token, credential }): Form<GoogleLoginRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     debug!("{}", g_csrf_token);
     debug!("{}", csrf_cookie.value);
@@ -88,7 +88,7 @@ pub async fn post_google(
             // prepend the identity provider to prevent collisions
             let user_id = format!("google_{}", &payload.sub);
             let session = Session {
-                session_id: state.make_session(&user_id).await,
+                session_id: state.make_session(&user_id).await?,
                 user_id,
                 username: payload.email.expect("no email provided in google sign in response"),
                 authority: Authority::GOOGLE,
@@ -104,7 +104,7 @@ pub async fn post_google(
             Ok((
                 CookieJar::new().add(cookie),
                 [("location", "/")],
-                StatusCode::MOVED_PERMANENTLY,
+                StatusCode::SEE_OTHER,
             ))
         },
         false => {
@@ -125,7 +125,7 @@ pub async fn get_discord(
     let user = app_state.discord_client.get_user(&code).await?;
     let user_id = format!("discord_{}", user.id);
     let session = Session { 
-        session_id: app_state.make_session(&user_id).await,
+        session_id: app_state.make_session(&user_id).await?,
         user_id,
         username: user.username,
         authority: Authority::DISCORD,
@@ -140,6 +140,6 @@ pub async fn get_discord(
     Ok((
         CookieJar::new().add(cookie),
         [("location", "/")],
-        StatusCode::MOVED_PERMANENTLY,
+        StatusCode::SEE_OTHER,
     ))
 }

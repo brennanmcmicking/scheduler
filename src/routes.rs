@@ -7,7 +7,7 @@ use aws_sdk_dynamodb::{
     operation::create_table::CreateTableOutput,
     types::{
         AttributeDefinition, AttributeValue, KeySchemaElement, KeyType, ProvisionedThroughput,
-        ReturnValue, ScalarAttributeType,
+        ReturnValue, ScalarAttributeType, TimeToLiveSpecification,
     },
     Client,
 };
@@ -17,6 +17,7 @@ use axum::{
 };
 use axum_extra::extract::{cookie::Cookie, CookieJar};
 use google_oauth::AsyncClient;
+use jiff::{Timestamp, ToSpan};
 use r2d2_sqlite::SqliteConnectionManager;
 use regex::bytes::Regex;
 use rusqlite::{params, Connection, OpenFlags};
@@ -87,7 +88,7 @@ pub trait UserStore: Clone {
         schedule: &Schedule,
     ) -> impl std::future::Future<Output = Result<Schedule>> + Send;
     fn delete_user_schedule(&self, user_id: &str, schedule_id: &str) -> impl std::future::Future<Output = ()> + Send;
-    fn make_session(&self, user_id: &str, session_id: &str) -> impl std::future::Future<Output = ()> + Send;
+    fn make_session(&self, user_id: &str, session_id: &str, ttl: i64) -> impl std::future::Future<Output = Result<()>> + Send;
     fn has_session(&self, user_id: &str, session_id: &str) -> impl std::future::Future<Output = Result<bool>> + Send;
 }
 
@@ -212,43 +213,53 @@ impl UserStore for DynamoUserStore {
         }
     }
 
-    async fn make_session(&self, user_id: &str, session_id: &str) {
+    async fn make_session(&self, user_id: &str, session_id: &str, ttl: i64) -> Result<()> {
         match self
             .ddb_client
             .put_item()
             .table_name(&self.sessions_table_name)
             .item("userId", AttributeValue::S(user_id.to_string()))
             .item("sessionId", AttributeValue::S(session_id.to_string()))
-            // .item("ttl", ) // TODO: TTL
+            .item("expiresAt", AttributeValue::N(format!("{}", ttl))) 
             .send()
             .await
         {
-            Ok(_r) => debug!("created session {}:{}", user_id, session_id),
-            Err(err) => error!(
-                "failed to make session {}:{}, {}",
-                user_id,
-                session_id,
-                err.to_string()
-            ),
+            Ok(_r) => {
+                debug!("created session {}:{}", user_id, session_id);
+                Ok(())
+            },
+            Err(err) => {
+                error!(
+                    "failed to make session {}:{}, {}",
+                    user_id,
+                    session_id,
+                    err.to_string()
+                );
+                Err(anyhow!("{}", err))
+            },
         }
     }
 
     async fn has_session(&self, user_id: &str, session_id: &str) -> Result<bool> {
-        debug!("getting session {}:{}", user_id, session_id);
-        let results = self
+        let ttl = Timestamp::now().checked_add(168.hours())?.as_second();
+        debug!("getting session {}:{}, ttl={}", user_id, session_id, ttl);
+        match self
             .ddb_client
-            .query()
+            .update_item()
             .table_name(&self.sessions_table_name)
-            .key_condition_expression("#uid = :user_id AND sessionId = :sessionId")
-            .expression_attribute_names("#uid", "userId")
-            .expression_attribute_values(":user_id", AttributeValue::S(user_id.to_string()))
-            .expression_attribute_values(":sessionId", AttributeValue::S(session_id.to_string()))
+            .key("userId", AttributeValue::S(user_id.to_string()))
+            .key("sessionId", AttributeValue::S(session_id.to_string()))
+            .update_expression("SET expiresAt = :ttl")
+            .expression_attribute_values(":ttl", AttributeValue::N(format!("{}", ttl)))
+            .expression_attribute_values(":uid", AttributeValue::S(user_id.to_string()))
+            .expression_attribute_values(":sid", AttributeValue::S(session_id.to_string()))
+            .condition_expression("userId = :uid AND sessionId = :sid")
+            .return_values(ReturnValue::UpdatedNew)
             .send()
-            .await
-            .unwrap();
-
-        let items = results.items.ok_or(anyhow!("could not get items from ddb response"))?;
-        Ok(!items.is_empty())
+            .await {
+                Ok(_) => Ok(true),
+                Err(_) => Ok(false),
+            }
     }
 }
 
@@ -674,12 +685,13 @@ impl DatabaseAppState {
             .await;
     }
 
-    pub async fn make_session(&self, user_id: &str) -> String {
+    pub async fn make_session(&self, user_id: &str) -> Result<String> {
         let session_id = Uuid::new_v4().to_string();
+        let ttl = Timestamp::now().checked_add(168.hours())?;
         self.user_store
-            .make_session(user_id, &session_id)
-            .await;
-        session_id
+            .make_session(user_id, &session_id, ttl.as_second())
+            .await
+            .map(|_r| session_id)
     }
 
     pub async fn is_valid_session(&self, user_id: &str, session_id: &str) -> bool {
@@ -828,6 +840,17 @@ pub async fn make_app(stage: Stage, use_local_dynamo: bool) -> Router {
             .await
             .map_err(|_e| panic!());
     }
+    // will set TTL on the table even if it already existed for backwards-compat reasons
+    let _ = ddb_client.update_time_to_live()
+        .table_name(&sessions_table_name)
+        .time_to_live_specification(
+            TimeToLiveSpecification::builder()
+            .attribute_name("expiresAt")  
+            .enabled(true)
+            .build().unwrap()
+        )
+        .send()
+        .await;
 
     let user_store = DynamoUserStore::new(ddb_client, &sessions_table_name, &schedules_table_name);
 
@@ -892,13 +915,14 @@ async fn unauth_redirect(
     next: Next,
 ) -> Result<impl IntoResponse, AppError> {
     let res = next.run(req).await;
+    debug!("res.status()={}", res.status());
     if res.status() == StatusCode::UNAUTHORIZED {
         // if there was an unauthorized response then delete the session cookie and redirect to the login page
         let cookie = Cookie::build(("session", "")).removal().build();
         return Ok((
             CookieJar::new().add(cookie),
-            [("location", "/")],
-            StatusCode::MOVED_PERMANENTLY,
+            [("location", "/login")],
+            StatusCode::SEE_OTHER,
         ).into_response());
     }
 

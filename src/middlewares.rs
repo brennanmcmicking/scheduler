@@ -133,12 +133,6 @@ pub struct Session {
 }
 
 impl Session {
-    pub async fn is_validate(&self, state: &Arc<DatabaseAppState>) -> bool {
-        state
-            .is_valid_session(&self.user_id, &self.session_id)
-            .await
-    }
-
     pub fn to_base64(&self) -> String {
         let json = serde_json::to_string(&self).expect("failed to serialize to json");
         STANDARD_NO_PAD.encode(json)
@@ -170,7 +164,7 @@ where
                 match result.ok() {
                     Some(sess) => {
                         let state = Arc::from_ref(state);
-                        match sess.is_validate(&state).await {
+                        match state.is_valid_session(&sess.user_id, &sess.session_id).await {
                             true => Ok(sess),
                             false => Err(StatusCode::UNAUTHORIZED),
                         }
@@ -178,7 +172,7 @@ where
                     None => Err(StatusCode::UNAUTHORIZED),
                 }
             }
-            None => Err(StatusCode::UNAUTHORIZED),
+            None => Err(StatusCode::NOT_FOUND),
         }
     }
 }
@@ -219,15 +213,20 @@ where
                     .await
                     .map_err(|_e| StatusCode::NOT_FOUND)
             }
-            Err(_e) => {
-                let jar = CookieJar::from_request_parts(parts, state).await.unwrap();
-                match jar.get(&schedule_id) {
-                    Some(cookie) => Ok(Schedule::try_from(cookie).map_err(|err| {
-                        tracing::trace!("failed to parse: {:?}", err);
-                        debug!("failed to parse: {:?}", err);
-                        StatusCode::NOT_FOUND
-                    })?),
-                    None => Err(StatusCode::NOT_FOUND),
+            Err(e) => {
+                match e {
+                    StatusCode::UNAUTHORIZED => Err(StatusCode::UNAUTHORIZED),
+                    _ => {
+                        let jar = CookieJar::from_request_parts(parts, state).await.unwrap();
+                        match jar.get(&schedule_id) {
+                            Some(cookie) => Ok(Schedule::try_from(cookie).map_err(|err| {
+                                tracing::trace!("failed to parse: {:?}", err);
+                                debug!("failed to parse: {:?}", err);
+                                StatusCode::NOT_FOUND
+                            })?),
+                            None => Err(StatusCode::NOT_FOUND),
+                        }
+                    }
                 }
             }
         }
@@ -270,20 +269,25 @@ where
                     schedules: user.schedules,
                 })
             }
-            Err(_e) => {
-                let jar = CookieJar::from_request_parts(parts, state).await.unwrap();
-                Ok(Schedules {
-                    schedules: jar
-                        .iter()
-                        .filter_map(|cookie| match Schedule::try_from(cookie) {
-                            Ok(schedule) => Some(ScheduleWithId {
-                                schedule,
-                                id: cookie.name().to_string(),
-                            }),
-                            Err(_e) => None,
+            Err(e) => {
+                match e {
+                    StatusCode::UNAUTHORIZED => Err(StatusCode::UNAUTHORIZED),
+                    _ => {
+                        let jar = CookieJar::from_request_parts(parts, state).await.unwrap();
+                        Ok(Schedules {
+                            schedules: jar
+                                .iter()
+                                .filter_map(|cookie| match Schedule::try_from(cookie) {
+                                    Ok(schedule) => Some(ScheduleWithId {
+                                        schedule,
+                                        id: cookie.name().to_string(),
+                                    }),
+                                    Err(_e) => None,
+                                })
+                                .collect(),
                         })
-                        .collect(),
-                })
+                    }
+                }
             }
         }
     }
