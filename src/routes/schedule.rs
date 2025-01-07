@@ -49,21 +49,19 @@ pub async fn post(
         selected: SelectedCourses::default()
     };
     if state.get_terms().contains(&term) {
-        match session {
+        let jar = match session {
             Some(sess) => {
                 let _ = state.set_user_schedule(&sess.user_id, &uuid.to_string(), &new_schedule).await;
-                Ok((
-                    CookieJar::new(),
-                    [("location", format!("/schedule/{}", uuid))],
-                    StatusCode::MOVED_PERMANENTLY,
-                ))
+                CookieJar::new()
             },
-            None => Ok((
-                CookieJar::new().add(new_schedule.make_cookie(uuid.to_string())),
-                [("location", format!("/schedule/{}", uuid))],
-                StatusCode::MOVED_PERMANENTLY
-            ))
-        }
+            None => CookieJar::new().add(new_schedule.make_cookie(uuid.to_string())),
+        };
+
+        Ok((
+            jar,
+            [("location", format!("/schedule/{}", uuid))],
+            StatusCode::SEE_OTHER,
+        ))
     } else {
         Err(AppError::Code(StatusCode::BAD_REQUEST))
     }
@@ -84,9 +82,12 @@ pub async fn delete(
             state.delete_user_schedule(&sess.user_id, &schedule_id).await;
         },
         None => { 
-            let mut cookie = Cookie::build((schedule_id, "")).path("/").build();
-            cookie.make_removal();
-            jar = jar.add(cookie);
+            jar = jar.add(
+                Cookie::build((schedule_id, ""))
+                .path("/")
+                .removal()
+                .build()
+            );
         }
     };
 
