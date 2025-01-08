@@ -49,8 +49,8 @@ jobs:
           working-directory: /home/ec2-user/scheduler
           command: |
             aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 446708209687.dkr.ecr.us-east-1.amazonaws.com
-            docker-compose stop
-            docker-compose rm -f
-            docker-compose pull
-            docker-compose up -d
+            docker compose stop
+            docker compose rm -f
+            docker compose pull
+            docker compose up -d
             docker image prune -af
