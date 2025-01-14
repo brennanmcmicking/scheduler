@@ -1,7 +1,7 @@
 use maud::{html, Markup};
 use tracing::debug;
 
-use crate::scraper::{Course, MeetingTime, Section};
+use crate::{components, scraper::{Course, MeetingTime, Section}};
 
 fn meeting_time_indicator(mt: &MeetingTime) -> Markup {
     let start_time_str = match mt.start_time {
@@ -176,13 +176,16 @@ pub fn view(schedule_id: &String, courses: &[Course], selected: &[Section]) -> M
     }
 }
 
-pub fn generator_view(schedule_id: &String, secs: &Vec<Section>, prev_url: &String, next_url: &String) -> Markup {
+pub fn generator_view(schedule_id: &String, secs: &Vec<Section>, prev_url: &String, next_url: &String, overwrite_url: &str, new_schedule_base64: &String) -> Markup {
     html! {
         div class="flex justify-between gap-2" {
             a class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 transition rounded-lg h-full p-1 my-1 text-xl"
             href=(prev_url) {
                 "previous"
             }
+            (components::button::form(overwrite_url, html!(
+                input type="hidden" name="schedule" value=(new_schedule_base64) {}
+            ), "take"))
             a class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 transition rounded-lg h-full p-1 my-1 text-xl"
             href=(next_url) {
                 "next"

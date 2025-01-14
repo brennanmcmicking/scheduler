@@ -47,14 +47,14 @@ pub fn base(
             body hx-ext="multi-swap" class="h-full w-full bg-slate-100 dark:bg-neutral-900 dark:text-white overflow-y-none" {
                 div id="app-container" class="h-full flex flex-col" {
                     div class="shadow-lg w-full bg-white dark:bg-neutral-800 block" {
-                        div id="header-container" class="max-w-screen-2xl w-full mx-auto flex max-h-6 lg:max-h-12" {
-                            div class="w-1/3 px-1 lg:py-2" {
+                        div id="header-container" class="max-w-screen-2xl w-full mx-auto lg:px-2 flex max-h-6 lg:max-h-12" {
+                            div class="w-1/3 flex justify-start lg:py-2" {
                                 (components::button::link("/", html!("home")))
                             }
                             div class="w-1/3 flex justify-center items-center" {
                                 "uvic scheduler"
                             }
-                            div class="w-1/3 px-1 lg:py-2 flex justify-end gap-2" {
+                            div class="w-1/3 flex px-1 lg:py-2 justify-end gap-2" {
                                 (header_right)
                             }
                         }

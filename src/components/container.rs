@@ -44,7 +44,9 @@ pub fn generator_container(
     schedule_id: &String,
     sections: &Vec<Section>,
     prev_url: &String,
-    next_url: &String
+    next_url: &String,
+    overwrite_url: &str,
+    new_schedule_base64: &String,
 ) -> Markup {
     html! {
         div id="generator-container" class="flex flex-col w-full h-full lg:flex-row lg:p-1 gap-1" {
@@ -56,7 +58,7 @@ pub fn generator_container(
             div id="interactive-container" class="w-full h-1/2 flex flex-row px-1 pb-1 gap-1 lg:contents" {
                 section class="h-full overflow-y-hidden shrink-0 grow basis-1/2 lg:basis-1/5 bg-white dark:bg-neutral-800 p-2 rounded-lg" {
                     div id="courses-container" class="h-full overflow-y-scroll" {
-                        (components::courses::generator_view(schedule_id, sections, prev_url, next_url))
+                        (components::courses::generator_view(schedule_id, sections, prev_url, next_url, overwrite_url, new_schedule_base64))
                     }
                 }
             }
