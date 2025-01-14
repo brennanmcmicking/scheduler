@@ -1,13 +1,16 @@
 use std::sync::Arc;
 
-use anyhow::Result;
-use axum::extract::{Path, Query, State};
+use anyhow::{anyhow, Result};
+use axum::{debug_handler, extract::{Path, Query, State}, response::IntoResponse};
+use axum_extra::extract::{CookieJar, Form};
 use itertools::Itertools;
 use maud::{html, Markup};
+use reqwest::StatusCode;
 use serde::Deserialize;
 use tracing::instrument;
+use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
 
-use crate::{components, middlewares::{Schedule, Session}, scraper::ThinSection};
+use crate::{components, middlewares::{Schedule, ScheduleWithId, Session}, scraper::ThinSection};
 
 use super::{AppError, DatabaseAppState};
 
@@ -17,15 +20,15 @@ pub struct GenerationState {
     prev: Option<bool>,
 }
 
-#[instrument(level = "debug", skip(state))]
+#[instrument(level = "debug", skip(app_state))]
 pub async fn get(
     Path(schedule_id): Path<String>,
-    State(state): State<Arc<DatabaseAppState>>,
+    State(app_state): State<Arc<DatabaseAppState>>,
     Query(generation_state): Query<GenerationState>,
     schedule: Schedule,
     session: Option<Session>
 ) -> Result<Markup, AppError> {
-    let courses = state.courses(schedule.term, &schedule.selected.thin_courses())?;
+    let courses = app_state.courses(schedule.term, &schedule.selected.thin_courses())?;
     let state = generation_state
         .state
         .map(|s| {
@@ -38,8 +41,17 @@ pub async fn get(
     let next_state =
         algo::next_schedule(&courses, state.as_deref(), generation_state.prev.is_some());
 
-    let Some(sections) = next_state else {
-        return Ok(html! {("no sections")});
+    let sections = match next_state {
+        Some(next) => next,
+        // ugly hack - reverse direction
+        None => {
+            state.ok_or(anyhow!("could not get existing state at end of traversal"))?
+            .iter()
+            .map(|s| {
+                app_state.get_section(&schedule.term, s).unwrap()
+            })
+            .collect()
+        },
     };
 
     let next_url = format!(
@@ -49,10 +61,21 @@ pub async fn get(
     );
     let prev_url = next_url.clone() + "&prev=true";
 
+    let overwrite_url = format!("/schedule/{}/generate", schedule_id);
+
+    let new_schedule = ScheduleWithId {
+        schedule: Schedule {
+            name: schedule.name,
+            term: schedule.term,
+            selected: sections.clone().into(),
+        },
+        id: schedule_id.clone(),
+    };
+
     // let section_refs = sections.iter().collect();
 
     Ok(components::base(html! {
-        (components::container::generator_container(&schedule_id, &sections, &prev_url, &next_url))
+        (components::container::generator_container(&schedule_id, &sections, &prev_url, &next_url, &overwrite_url, &new_schedule.to_base64()))
     }, session))
 }
 
@@ -331,14 +354,36 @@ mod algo {
     }
 }
 
+#[derive(Debug, Deserialize)]
+pub struct Overwrite {
+    schedule: String,
+}
+
 // TODO: overwrite "selected" cookie with generated schedule
-#[instrument(level = "debug", skip(_state))]
+#[instrument(level = "debug", skip(state))]
+#[debug_handler]
 pub async fn post(
     Path(schedule_id): Path<String>,
-    State(_state): State<Arc<DatabaseAppState>>,
-    schedule: Schedule,
-) -> Result<Markup, AppError> {
-    Ok(html! {
-        ("hi")
-    })
+    State(state): State<Arc<DatabaseAppState>>,
+    session: Option<Session>,
+    Form( overwrite ): Form<Overwrite>,
+) -> Result<impl IntoResponse, AppError> {
+    let new_schedule_json = STANDARD_NO_PAD.decode(overwrite.schedule).map_err(|e| anyhow!("could not decode schedule, {}", e))?;
+    let new_schedule: ScheduleWithId = serde_json::from_slice(&new_schedule_json).map_err(|e| anyhow!("could not deserialize schedule, {}", e))?;
+
+    let jar = match session {
+        Some(session) => {
+            let _ = state.set_user_schedule(&session.user_id, &new_schedule.id, &new_schedule.schedule).await;
+            CookieJar::new()
+        },
+        None => {
+            CookieJar::new().add(new_schedule.schedule.make_cookie(new_schedule.id))
+        }
+    };
+
+    Ok((
+        jar,
+        [("hx-location", format!("/schedule/{}", schedule_id))],
+        StatusCode::SEE_OTHER,
+    ))
 }

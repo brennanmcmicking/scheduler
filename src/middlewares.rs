@@ -18,8 +18,8 @@ use tracing::debug;
 use anyhow::anyhow;
 
 use crate::{
-    routes::DatabaseAppState,
-    scraper::{Term, ThinCourse, ThinSection},
+    routes::{DatabaseAppState, SectionType},
+    scraper::{Section, Term, ThinCourse, ThinSection},
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -40,6 +40,18 @@ impl Selection {
         .filter_map(Option::as_ref)
         .map(|i| i.crn)
         .collect()
+    }
+}
+
+impl Default for Selection {
+    fn default() -> Self {
+        Self {
+            lecture: ThinSection {
+                crn: 0,
+            },
+            lab: None,
+            tutorial: None,
+        }
     }
 }
 
@@ -114,6 +126,40 @@ impl SelectedCourses {
 
     pub fn crns(&self) -> Vec<u64> {
         self.courses.values().flat_map(|s| s.crns()).collect()
+    }
+}
+
+impl From<Vec<Section>> for SelectedCourses {
+    fn from(value: Vec<Section>) -> Self {
+        let mut courses: BTreeMap<ThinCourse, Selection> = BTreeMap::new();
+        value.iter().for_each(|section| {
+            let thin_course = ThinCourse {
+                subject_code: section.subject_code.clone(),
+                course_code: section.course_code.clone(),
+            };
+
+            let mut current: Selection;
+            if courses.contains_key(&thin_course) {
+                current = courses.get_mut(&thin_course).unwrap().clone();
+            } else {
+                current = Selection::default();
+            }
+
+            let thin_section = ThinSection {
+                crn: section.crn
+            };
+
+            match section.get_type() {
+                SectionType::Lecture => current.lecture = thin_section,
+                SectionType::Lab => current.lab = Some(thin_section),
+                SectionType::Tutorial => current.tutorial = Some(thin_section),
+            }
+            courses.insert(thin_course, current);
+        });
+
+        SelectedCourses {
+            courses,
+        }
     }
 }
 
@@ -232,10 +278,17 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScheduleWithId {
     pub schedule: Schedule,
     pub id: String,
+}
+
+impl ScheduleWithId {
+    pub fn to_base64(&self) -> String {
+        let userstate_json = serde_json::to_string(&self).expect("failed to serialize to json");
+        STANDARD_NO_PAD.encode(userstate_json)
+    }
 }
 
 #[derive(Debug)]

@@ -9,6 +9,8 @@ use jiff::{
     ToSpan, Zoned,
 };
 
+use crate::routes::SectionType;
+
 #[derive(
     Clone, Copy, Debug, ValueEnum, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
@@ -261,6 +263,17 @@ pub struct Section {
     pub waitlist_capacity: u32,
 
     pub meeting_times: Vec<MeetingTime>,
+}
+
+impl Section {
+    pub fn get_type(&self) -> SectionType {
+        match self.sequence_code.chars().nth(0) {
+            Some('A') => SectionType::Lecture,
+            Some('B') => SectionType::Lab,
+            Some('T') => SectionType::Tutorial,
+            _ => panic!()
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
