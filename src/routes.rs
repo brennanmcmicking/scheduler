@@ -45,6 +45,7 @@ mod root;
 mod schedule;
 mod search;
 mod share;
+mod donate;
 
 pub enum SectionType {
     Lecture,
@@ -888,6 +889,7 @@ pub async fn make_app(stage: Stage, use_local_dynamo: bool) -> Router {
         )
         .route("/share/:schedule_id", get(share::get))
         .route("/import", get(import::get))
+        .route("/donate", get(donate::get))
         .route("/schedule", post(schedule::post))
         .nest(
             "/schedule/:schedule_id",

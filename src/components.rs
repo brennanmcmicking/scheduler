@@ -48,8 +48,9 @@ pub fn base(
                 div id="app-container" class="h-full flex flex-col" {
                     div class="shadow-lg w-full bg-white dark:bg-neutral-800 block" {
                         div id="header-container" class="max-w-screen-2xl w-full mx-auto lg:px-2 flex max-h-6 lg:max-h-12" {
-                            div class="w-1/3 flex justify-start lg:py-2" {
+                            div class="w-1/3 flex justify-start gap-2 lg:py-2" {
                                 (components::button::link("/", html!("home")))
+                                (components::button::link("/donate", html!("donate")))
                             }
                             div class="w-1/3 flex justify-center items-center" {
                                 "uvic scheduler"
