@@ -7,10 +7,13 @@ but in ✨Rust✨ 🦀🦀🦀 which mean's it's blazingly🔥🔥🔥 fast🚀�
 
 # Getting Started
 
-1. Run DynamoDB locally: 
+1. Either you received dev AWS creds from Brennan or you'll need to run DynamoDB locally:
 ```
 docker run -p 8000:8000 amazon/dynamodb-local
 ```
+
+then make sure `USE_LOCAL_DYNAMO` is set on your env
+
 2. Install `cargo-watch`:
 ```
 cargo install cargo-watch
@@ -25,6 +28,11 @@ cargo run --bin scraper -- --oldest 202401
 ```
 cargo watch -x run
 ```
+with `DISCORD_SECRET` if you want to test out logging in with Discord:
+```
+DISCORD_SECRET=... cargo watch -x run
+```
+
 
 ## References
 
