@@ -51,10 +51,10 @@ fn render_section_cards(earliest: &Time, latest: &Time, renderable_meeting: &Ren
                 div class={"absolute top-[calc(" (tp) "%)] bottom-[calc(" (bp) "%)] left-[calc(" (lp) "%)] right-[calc(" (rp) "%)] h-auto w-auto" (opacity)} {
                     div class={"h-full w-full rounded-lg overflow-y-scroll text-xs lg:text-sm color-red bg-[hsl(" ((renderable_meeting.crn * 10) % 360) ",100%,40%)] dark:bg-[hsl(" ((renderable_meeting.crn * 10) % 360) ",100%,25%)] flex flex-col box-sizing" (border)} {
                         div class="flex justify-between flex-wrap bg-slate-200 dark:bg-slate-800 px-1" {
-                            span class="text-xs lg:text-md" {
+                            span class="text-[calc(1.5vh)] lg:text-xs lg:text-md" {
                                 (renderable_meeting.subject_code) " " (renderable_meeting.course_code)
                             }
-                            span class="hidden text-xs lg:block" {
+                            span class="hidden text-[calc(1.5vh)] lg:text-xs lg:block" {
                                 (renderable_meeting.sequence_code)
                             }
                         }
