@@ -31,18 +31,11 @@ pub async fn get(State(state): State<Arc<DatabaseAppState>>, session: Option<Ses
         components::base(
             html! {
                 script src="https://accounts.google.com/gsi/client" async {}
-                div id="login-container" class="flex flex-col gap-2 w-full items-center" {
-                    div {
-                        button hx-post="/login/unsafe"  {
-                            "test login session"
-                        }
-                    }
+                div id="login-container" class="flex flex-col gap-2 py-2 w-full items-center" {
                     a href=(discord_link) {
                         div class="rounded bg-[#5865F2] flex h-10 p-2 gap-2" {
-                            img src="/assets/discord-mark-white.svg" {}
-                            p {
-                                "Continue with Discord"
-                            }
+                            img class="w-10" src="/assets/discord-mark-white.svg" {}
+                            p class="whitespace-nowrap" { "Continue with Discord" }
                         }
                     }
                     div id="g_id_onload"
