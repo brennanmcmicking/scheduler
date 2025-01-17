@@ -43,6 +43,10 @@ pub async fn post(
 ) -> Result<impl IntoResponse, AppError> {
     let uuid = Uuid::new_v4();
     let term: Term = term.parse().unwrap();
+    let name = match name.len() > 100 {
+        true => name[..100].to_string(),
+        false => name,
+    };
     let new_schedule = Schedule {
         name,
         term,
