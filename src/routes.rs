@@ -804,6 +804,16 @@ pub enum Stage {
     PROD
 }
 
+impl From<String> for Stage {
+    fn from(value: String) -> Self {
+        match value.as_str() {
+            "prod" => Stage::PROD,
+            "local" => Stage::LOCAL,
+            _ => Stage::LOCAL,
+        }
+    }
+}
+
 pub async fn make_app(stage: Stage, use_local_dynamo: bool) -> Router {
     let region = RegionProviderChain::default_provider().or_else("us-east-1");
     let ddb_config = match use_local_dynamo {
