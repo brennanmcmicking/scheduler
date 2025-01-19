@@ -21,7 +21,7 @@ pub async fn get(
                     "back"
                 }
                 textarea class="p-2 w-full text-black rounded-lg grow border-neutral-400 border-2 dark:border-0" readonly {
-                    (uri.scheme_str().unwrap_or("http://")) (host) "/import?blob=" (schedule.to_base64())
+                    (uri.scheme_str().unwrap_or("http")) "://" (host) "/import?blob=" (schedule.to_base64())
                 }
             }
         }
