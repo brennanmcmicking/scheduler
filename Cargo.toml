@@ -20,7 +20,7 @@ axum-extra = { version = "0.9.3", features = ["cookie", "form"] }
 clap = { version = "4.5.9", features = ["derive"] }
 futures = "0.3.30"
 jiff = "0.1.28"
-maud = { version = "*", features = ["axum"] }
+maud = { version = "0.26", features = ["axum"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.68"
 reqwest = { version = "0.12.5", features = ["cookies", "json"] }

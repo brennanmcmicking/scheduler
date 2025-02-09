@@ -16,15 +16,25 @@ struct RenderableMeetingTime {
 }
 
 fn has_conflict(meeting: &RenderableMeetingTime, other: &RenderableMeetingTime) -> bool {
-    match meeting.mt.start_time.zip(other.mt.start_time).zip(meeting.mt.end_time).zip(other.mt.end_time) {
-        Some((((mst, ost), met), oet)) => {
-             mst < oet && ost < met
-        },
-        None => false
+    match meeting
+        .mt
+        .start_time
+        .zip(other.mt.start_time)
+        .zip(meeting.mt.end_time)
+        .zip(other.mt.end_time)
+    {
+        Some((((mst, ost), met), oet)) => mst < oet && ost < met,
+        None => false,
     }
 }
 
-fn render_section_cards(earliest: &Time, latest: &Time, renderable_meeting: &RenderableMeetingTime, conflicts_before: usize, conflicts_after: usize) -> Markup {
+fn render_section_cards(
+    earliest: &Time,
+    latest: &Time,
+    renderable_meeting: &RenderableMeetingTime,
+    conflicts_before: usize,
+    conflicts_after: usize,
+) -> Markup {
     let earliest = earliest.hour() as f32 + earliest.minute() as f32 / 60.0;
     let latest = latest.hour() as f32 + latest.minute() as f32 / 60.0 + 0.5;
     let num_overlapping: f32 = conflicts_before as f32 + 1.0 + conflicts_after as f32;
@@ -37,7 +47,7 @@ fn render_section_cards(earliest: &Time, latest: &Time, renderable_meeting: &Ren
                 @let tp = (st - earliest) / (latest - earliest) * 100.0;
                 @let bp = (latest - et) / (latest - earliest) * 100.0;
                 @let lp = (conflicts_before as f32 / num_overlapping) * 100.0;
-                @let rp = (conflicts_after as f32 / num_overlapping) * 100.0; 
+                @let rp = (conflicts_after as f32 / num_overlapping) * 100.0;
                 @let border = if renderable_meeting.full {
                     " border-2 border-red-800"
                 } else {
@@ -65,36 +75,52 @@ fn render_section_cards(earliest: &Time, latest: &Time, renderable_meeting: &Ren
     )
 }
 
-fn render_day(day: Day, timeslots: &Vec<Time>, sections: &[Section], preview_sections: &[Section]) -> Markup {
+fn render_day(
+    day: Day,
+    timeslots: &Vec<Time>,
+    sections: &[Section],
+    preview_sections: &[Section],
+) -> Markup {
     let earliest = timeslots.first().unwrap();
     let latest = timeslots.last().unwrap();
 
     let renderable_meetings: Vec<RenderableMeetingTime> = [
-        sections.iter()
-        .flat_map(|s| s.meeting_times.clone().into_iter()
-            .map(|mt| RenderableMeetingTime {
-                mt,
-                crn: s.crn,
-                subject_code: s.subject_code.clone(),
-                course_code: s.course_code.clone(),
-                sequence_code: s.sequence_code.clone(),
-                full: s.enrollment == s.enrollment_capacity || s.waitlist > 0,
-                preview: false,
+        sections
+            .iter()
+            .flat_map(|s| {
+                s.meeting_times
+                    .clone()
+                    .into_iter()
+                    .map(|mt| RenderableMeetingTime {
+                        mt,
+                        crn: s.crn,
+                        subject_code: s.subject_code.clone(),
+                        course_code: s.course_code.clone(),
+                        sequence_code: s.sequence_code.clone(),
+                        full: s.enrollment == s.enrollment_capacity || s.waitlist > 0,
+                        preview: false,
+                    })
             })
-        ).collect::<Vec<_>>(),
-        preview_sections.iter()
-        .flat_map(|s| s.meeting_times.clone().into_iter()
-            .map(|mt| RenderableMeetingTime {
-                mt,
-                crn: s.crn,
-                subject_code: s.subject_code.clone(),
-                course_code: s.course_code.clone(),
-                sequence_code: s.sequence_code.clone(),
-                full: s.enrollment == s.enrollment_capacity || s.waitlist > 0,
-                preview: true,
+            .collect::<Vec<_>>(),
+        preview_sections
+            .iter()
+            .flat_map(|s| {
+                s.meeting_times
+                    .clone()
+                    .into_iter()
+                    .map(|mt| RenderableMeetingTime {
+                        mt,
+                        crn: s.crn,
+                        subject_code: s.subject_code.clone(),
+                        course_code: s.course_code.clone(),
+                        sequence_code: s.sequence_code.clone(),
+                        full: s.enrollment == s.enrollment_capacity || s.waitlist > 0,
+                        preview: true,
+                    })
             })
-        ).collect()
-    ].concat()
+            .collect(),
+    ]
+    .concat()
     .into_iter()
     .filter(|rm| day.is_in_days(rm.mt.days))
     .collect();
@@ -120,9 +146,11 @@ fn render_day(day: Day, timeslots: &Vec<Time>, sections: &[Section], preview_sec
 pub fn view(sections: &[Section], preview_sections: &[Section]) -> Markup {
     // debug!(?sections);
 
-    let meeting_times: Vec<&MeetingTime> = sections.iter().flat_map(|s| &s.meeting_times).chain(preview_sections.iter().flat_map(
-        |s| &s.meeting_times
-    )).collect();
+    let meeting_times: Vec<&MeetingTime> = sections
+        .iter()
+        .flat_map(|s| &s.meeting_times)
+        .chain(preview_sections.iter().flat_map(|s| &s.meeting_times))
+        .collect();
     // debug!(?meeting_times);
 
     let earliest: Time = meeting_times

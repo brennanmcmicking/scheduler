@@ -1,7 +1,8 @@
 use maud::{html, Markup};
 
 use crate::{
-    components, scraper::{Course, Section, ThinCourse}
+    components,
+    scraper::{Course, Section, ThinCourse},
 };
 
 pub fn main_container(

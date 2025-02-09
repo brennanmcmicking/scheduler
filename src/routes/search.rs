@@ -7,9 +7,11 @@ use serde::Deserialize;
 use std::sync::Arc;
 use tracing::{debug, instrument};
 
-use crate::{components, middlewares::Schedule};
-
-use super::{AppError, DatabaseAppState};
+use crate::{
+    common::{AppError, Schedule},
+    components,
+    data::DatabaseAppState,
+};
 
 #[derive(Deserialize, Debug)]
 pub struct Search {

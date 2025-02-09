@@ -1,18 +1,25 @@
 use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
-use axum::{debug_handler, extract::{Path, Query, State}, response::IntoResponse};
+use axum::{
+    debug_handler,
+    extract::{Path, Query, State},
+    response::IntoResponse,
+};
 use axum_extra::extract::{CookieJar, Form};
+use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
 use itertools::Itertools;
 use maud::{html, Markup};
 use reqwest::StatusCode;
 use serde::Deserialize;
 use tracing::instrument;
-use base64::{engine::general_purpose::STANDARD_NO_PAD, Engine};
 
-use crate::{components, middlewares::{Schedule, ScheduleWithId, Session}, scraper::ThinSection};
-
-use super::{AppError, DatabaseAppState};
+use crate::{
+    common::{AppError, Schedule, ScheduleWithId},
+    components,
+    data::{store::Session, DatabaseAppState},
+    scraper::ThinSection,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct GenerationState {
@@ -26,7 +33,7 @@ pub async fn get(
     State(app_state): State<Arc<DatabaseAppState>>,
     Query(generation_state): Query<GenerationState>,
     schedule: Schedule,
-    session: Option<Session>
+    session: Option<Session>,
 ) -> Result<Markup, AppError> {
     let courses = app_state.courses(schedule.term, &schedule.selected.thin_courses())?;
     let state = generation_state
@@ -44,14 +51,11 @@ pub async fn get(
     let sections = match next_state {
         Some(next) => next,
         // ugly hack - reverse direction
-        None => {
-            state.ok_or(anyhow!("could not get existing state at end of traversal"))?
+        None => state
+            .ok_or(anyhow!("could not get existing state at end of traversal"))?
             .iter()
-            .map(|s| {
-                app_state.get_section(&schedule.term, s).unwrap()
-            })
-            .collect()
-        },
+            .map(|s| app_state.get_section(&schedule.term, s).unwrap())
+            .collect(),
     };
 
     let next_url = format!(
@@ -74,9 +78,12 @@ pub async fn get(
 
     // let section_refs = sections.iter().collect();
 
-    Ok(components::base(html! {
-        (components::container::generator_container(&schedule_id, &sections, &prev_url, &next_url, &overwrite_url, &new_schedule.to_base64()))
-    }, session))
+    Ok(components::base(
+        html! {
+            (components::container::generator_container(&schedule_id, &sections, &prev_url, &next_url, &overwrite_url, &new_schedule.to_base64()))
+        },
+        session,
+    ))
 }
 
 // http://localhost:8443/schedule/ce966dcd-8ff5-4168-8728-2da8cac5269e/generate?state=20654_20664_21144_21160_21194_21196_21887_21914_22540_22563
@@ -366,19 +373,22 @@ pub async fn post(
     Path(schedule_id): Path<String>,
     State(state): State<Arc<DatabaseAppState>>,
     session: Option<Session>,
-    Form( overwrite ): Form<Overwrite>,
+    Form(overwrite): Form<Overwrite>,
 ) -> Result<impl IntoResponse, AppError> {
-    let new_schedule_json = STANDARD_NO_PAD.decode(overwrite.schedule).map_err(|e| anyhow!("could not decode schedule, {}", e))?;
-    let new_schedule: ScheduleWithId = serde_json::from_slice(&new_schedule_json).map_err(|e| anyhow!("could not deserialize schedule, {}", e))?;
+    let new_schedule_json = STANDARD_NO_PAD
+        .decode(overwrite.schedule)
+        .map_err(|e| anyhow!("could not decode schedule, {}", e))?;
+    let new_schedule: ScheduleWithId = serde_json::from_slice(&new_schedule_json)
+        .map_err(|e| anyhow!("could not deserialize schedule, {}", e))?;
 
     let jar = match session {
         Some(session) => {
-            let _ = state.set_user_schedule(&session.user_id, &new_schedule.id, &new_schedule.schedule).await;
+            let _ = state
+                .set_user_schedule(&session.user_id, &new_schedule.id, &new_schedule.schedule)
+                .await;
             CookieJar::new()
-        },
-        None => {
-            CookieJar::new().add(new_schedule.schedule.make_cookie(new_schedule.id))
         }
+        None => CookieJar::new().add(new_schedule.schedule.make_cookie(new_schedule.id)),
     };
 
     Ok((

@@ -1,18 +1,29 @@
 use std::sync::Arc;
 
-use axum::{extract::{Query, State}, response::IntoResponse};
+use axum::{
+    extract::{Query, State},
+    response::IntoResponse,
+};
 use axum_extra::extract::{cookie::Cookie, CookieJar, Form};
 use maud::html;
 use reqwest::StatusCode;
 use serde::Deserialize;
 use tracing::debug;
 
-use crate::{components, middlewares::{Authority, GoogleCsrfCookie, Session}};
+use crate::{
+    common::{AppError, Stage},
+    components,
+    data::{
+        auth::{Authority, GoogleCsrfCookie},
+        store::Session,
+        DatabaseAppState,
+    },
+};
 
-use super::{AppError, DatabaseAppState, Stage};
-
-
-pub async fn get(State(state): State<Arc<DatabaseAppState>>, session: Option<Session>) -> Result<impl IntoResponse, AppError> {
+pub async fn get(
+    State(state): State<Arc<DatabaseAppState>>,
+    session: Option<Session>,
+) -> Result<impl IntoResponse, AppError> {
     // if visiting the login page when already logged in, log them out
     let jar = match session {
         Some(_s) => {
@@ -67,7 +78,10 @@ pub struct GoogleLoginRequest {
 pub async fn post_google(
     State(state): State<Arc<DatabaseAppState>>,
     csrf_cookie: GoogleCsrfCookie,
-    Form( GoogleLoginRequest { g_csrf_token, credential }): Form<GoogleLoginRequest>,
+    Form(GoogleLoginRequest {
+        g_csrf_token,
+        credential,
+    }): Form<GoogleLoginRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     debug!("{}", g_csrf_token);
     debug!("{}", csrf_cookie.value);
@@ -75,34 +89,38 @@ pub async fn post_google(
 
     match csrf_cookie.value == g_csrf_token {
         true => {
-            let payload = state.google_client.validate_id_token(credential).await.unwrap();
+            let payload = state
+                .google_client
+                .validate_id_token(credential)
+                .await
+                .unwrap();
             debug!("{}", payload.sub);
-        
+
             // prepend the identity provider to prevent collisions
             let user_id = format!("google_{}", &payload.sub);
             let session = Session {
                 session_id: state.make_session(&user_id).await?,
                 user_id,
-                username: payload.email.expect("no email provided in google sign in response"),
+                username: payload
+                    .email
+                    .expect("no email provided in google sign in response"),
                 authority: Authority::GOOGLE,
             };
-            
+
             let cookie = Cookie::build(("session", session.to_base64()))
                 .http_only(true)
                 .secure(true)
                 .path("/")
                 .permanent()
                 .build();
-            
+
             Ok((
                 CookieJar::new().add(cookie),
                 [("location", "/")],
                 StatusCode::SEE_OTHER,
             ))
-        },
-        false => {
-            Err(StatusCode::BAD_REQUEST.into())
         }
+        false => Err(StatusCode::BAD_REQUEST.into()),
     }
 }
 
@@ -117,7 +135,7 @@ pub async fn get_discord(
 ) -> Result<impl IntoResponse, AppError> {
     let user = app_state.discord_client.get_user(&code).await?;
     let user_id = format!("discord_{}", user.id);
-    let session = Session { 
+    let session = Session {
         session_id: app_state.make_session(&user_id).await?,
         user_id,
         username: user.username,
@@ -129,7 +147,7 @@ pub async fn get_discord(
         .path("/")
         .permanent()
         .build();
-    
+
     Ok((
         CookieJar::new().add(cookie),
         [("location", "/")],

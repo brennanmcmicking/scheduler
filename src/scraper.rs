@@ -1,8 +1,8 @@
 use core::fmt;
 use rusqlite::Connection;
 use serde::{Deserialize, Deserializer, Serialize};
-use tracing::info;
 use std::{cmp::Ordering, fmt::Display, path::Path, str::FromStr};
+use tracing::info;
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::ValueEnum;
@@ -11,7 +11,7 @@ use jiff::{
     ToSpan, Zoned,
 };
 
-use crate::routes::SectionType;
+use crate::common::SectionType;
 
 #[derive(
     Clone, Copy, Debug, ValueEnum, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
@@ -247,7 +247,11 @@ pub struct MeetingTime {
 
 impl Display for MeetingTime {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {:?} - {:?}", self.days, self.start_time, self.end_time)
+        write!(
+            f,
+            "{}: {:?} - {:?}",
+            self.days, self.start_time, self.end_time
+        )
     }
 }
 
@@ -273,7 +277,7 @@ impl Section {
             Some('A') => SectionType::Lecture,
             Some('B') => SectionType::Lab,
             Some('T') => SectionType::Tutorial,
-            _ => panic!()
+            _ => panic!(),
         }
     }
 }
@@ -334,7 +338,6 @@ impl Serialize for ThinCourse {
         format!("{} {}", self.subject_code, self.course_code).serialize(serializer)
     }
 }
-
 
 pub async fn scrape(force: bool, oldest: Option<Term>) -> Result<()> {
     info!("fetching list of all terms");

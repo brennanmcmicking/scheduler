@@ -3,12 +3,10 @@ use maud::{html, Markup};
 use std::sync::Arc;
 use tracing::{debug, instrument};
 
-use crate::components;
+use crate::data::DatabaseAppState;
 
-use super::DatabaseAppState;
-
-#[instrument(level = "debug", skip(state))]
-pub async fn root(State(state): State<Arc<DatabaseAppState>>) -> Markup {
+#[instrument(level = "debug", skip(_state))]
+pub async fn root(State(_state): State<Arc<DatabaseAppState>>) -> Markup {
     debug!("health");
-    html!(200)
+    html!("200")
 }

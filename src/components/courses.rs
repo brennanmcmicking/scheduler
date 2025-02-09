@@ -1,7 +1,10 @@
 use maud::{html, Markup};
 use tracing::debug;
 
-use crate::{components, scraper::{Course, MeetingTime, Section}};
+use crate::{
+    components,
+    scraper::{Course, MeetingTime, Section},
+};
 
 fn meeting_time_indicator(mt: &MeetingTime) -> Markup {
     let start_time_str = match mt.start_time {
@@ -70,7 +73,12 @@ fn meeting_time_indicator(mt: &MeetingTime) -> Markup {
     )
 }
 
-fn small_section_card(schedule_id: &String, title: &String, section: &Section, selected: bool) -> Markup {
+fn small_section_card(
+    schedule_id: &String,
+    title: &String,
+    section: &Section,
+    selected: bool,
+) -> Markup {
     let color = match selected {
         true => "bg-blue-600 dark:bg-blue-800",
         false => "bg-green-500 dark:bg-green-800 hover:bg-green-600 hover:dark:bg-green-900",
@@ -176,7 +184,14 @@ pub fn view(schedule_id: &String, courses: &[Course], selected: &[Section]) -> M
     }
 }
 
-pub fn generator_view(schedule_id: &String, secs: &Vec<Section>, prev_url: &String, next_url: &String, overwrite_url: &str, new_schedule_base64: &String) -> Markup {
+pub fn generator_view(
+    schedule_id: &String,
+    secs: &Vec<Section>,
+    prev_url: &String,
+    next_url: &String,
+    overwrite_url: &str,
+    new_schedule_base64: &String,
+) -> Markup {
     html! {
         div class="flex justify-between gap-2" {
             a class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 transition rounded-lg h-full p-1 my-1 text-xl"

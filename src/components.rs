@@ -1,7 +1,9 @@
 use maud::{html, Markup};
 
-use crate::middlewares::{Authority, Session};
-use crate::components;
+use crate::{
+    components,
+    data::{auth::Authority, store::Session},
+};
 
 pub mod button;
 pub mod calendar;
@@ -10,14 +12,11 @@ pub mod courses;
 pub mod schedules;
 pub mod search_result;
 
-pub fn base(
-    content: Markup,
-    session: Option<Session>,
-) -> Markup {
+pub fn base(content: Markup, session: Option<Session>) -> Markup {
     let header_right = match session {
         Some(session) => html!(
             div class="grow flex gap-2 justify-end" {
-                @match session.authority { 
+                @match session.authority {
                     Authority::DISCORD => img src="/assets/discord-mark-white.svg" class="rounded p-1 lg:p-2 bg-[#5865F2]" {},
                     Authority::GOOGLE => img src="/assets/google-g-logo.svg" class="rounded-full lg:p-2 bg-white" {},
                 }

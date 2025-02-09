@@ -1,5 +1,8 @@
 use crate::{
-    components, middlewares::{Schedule, Session}, scraper::{ThinCourse, ThinSection},
+    common::{selected_sections, AppError, Schedule, SectionType},
+    components,
+    data::{store::Session, DatabaseAppState},
+    scraper::{ThinCourse, ThinSection},
 };
 use axum::{
     extract::{Form, Path, Query, State},
@@ -10,8 +13,6 @@ use maud::html;
 use serde::Deserialize;
 use std::sync::Arc;
 use tracing::instrument;
-
-use super::{selected_sections, AppError, DatabaseAppState, SectionType};
 
 #[instrument(level = "debug", skip(state))]
 pub async fn get_calendar(
@@ -51,24 +52,23 @@ pub async fn add_to_calendar(
 
         selected.courses.insert(course, default_sections);
 
-        let new_schedule = Schedule { 
-            name: schedule.name, 
-            term: schedule.term, 
-            selected: selected.clone() 
+        let new_schedule = Schedule {
+            name: schedule.name,
+            term: schedule.term,
+            selected: selected.clone(),
         };
 
         match session {
-            Some(sess) => { 
-                let _ = state.set_user_schedule(&sess.user_id, &schedule_id, &new_schedule).await;
-                (
-                    CookieJar::new(),
-                    selected,
-                )
-            },
+            Some(sess) => {
+                let _ = state
+                    .set_user_schedule(&sess.user_id, &schedule_id, &new_schedule)
+                    .await;
+                (CookieJar::new(), selected)
+            }
             None => (
                 CookieJar::new().add(new_schedule.make_cookie(schedule_id.clone())),
                 selected,
-            ) 
+            ),
         }
     };
 
@@ -128,9 +128,11 @@ pub async fn rm_from_calendar(
 
     let jar = match session {
         Some(sess) => {
-            let _ = state.set_user_schedule(&sess.user_id, &schedule_id, &new_schedule).await;
+            let _ = state
+                .set_user_schedule(&sess.user_id, &schedule_id, &new_schedule)
+                .await;
             CookieJar::new()
-        },
+        }
         None => CookieJar::new().add(new_schedule.make_cookie(schedule_id.clone())),
     };
 
@@ -194,17 +196,18 @@ pub async fn update_calendar(
 
     let jar = match session {
         Some(sess) => {
-            let _ = state.set_user_schedule(&sess.user_id, &schedule_id, &new_schedule).await;
+            let _ = state
+                .set_user_schedule(&sess.user_id, &schedule_id, &new_schedule)
+                .await;
             CookieJar::new()
-        },
+        }
         None => CookieJar::new().add(new_schedule.make_cookie(schedule_id.clone())),
     };
-        
+
     Ok((
         jar,
-        html!(
-            (components::calendar::view(&sections, &[]))
-            (components::courses::view(&schedule_id, &courses, &sections))
-        )
+        html!((components::calendar::view(&sections, &[]))(
+            components::courses::view(&schedule_id, &courses, &sections)
+        )),
     ))
 }
