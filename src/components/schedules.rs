@@ -2,7 +2,9 @@ use std::cmp::Reverse;
 
 use maud::{html, Markup};
 
-use crate::middlewares::ScheduleWithId;
+use common::ScheduleWithId;
+
+use crate::common;
 
 pub fn view(mut schedules: Vec<ScheduleWithId>) -> Markup {
     schedules.sort_by_key(|s| Reverse(format!("{}{}", s.schedule.term, s.schedule.name)));
@@ -14,7 +16,7 @@ pub fn view(mut schedules: Vec<ScheduleWithId>) -> Markup {
                         p {(schedule.schedule.name)}
                         p {(schedule.schedule.term.human_display())}
                     }
-                    button hx-delete={"/schedule/" (schedule.id)} hx-target="#schedules-view" hx-swap="outerHTML" 
+                    button hx-delete={"/schedule/" (schedule.id)} hx-target="#schedules-view" hx-swap="outerHTML"
                     class="w-10 h-10 flex justify-center items-center bg-red-500 dark:bg-red-600 hover:bg-red-700 hover:dark:bg-red-800 rounded-lg transition p-2" {
                         ("x")
                     }

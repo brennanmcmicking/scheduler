@@ -1,16 +1,23 @@
-use crate::{components::schedules, middlewares::{Schedule, Schedules, SelectedCourses, Session}, routes::selected_sections, scraper::Term};
-use axum::{debug_middleware, extract::{Path, Request, State}, middleware::Next, response::IntoResponse};
+use axum::{
+    debug_middleware,
+    extract::{Path, Request, State},
+    middleware::Next,
+    response::IntoResponse,
+};
 use axum_extra::extract::{cookie::Cookie, CookieJar, Form};
 use maud::{html, Markup};
 use reqwest::StatusCode;
 use serde::Deserialize;
-use uuid::Uuid;
 use std::sync::Arc;
 use tracing::instrument;
+use uuid::Uuid;
 
-use crate::components;
-
-use super::{AppError, DatabaseAppState};
+use crate::{
+    common::{selected_sections, AppError, Schedule, Schedules, SelectedCourses},
+    components::{self, schedules},
+    data::{store::Session, DatabaseAppState},
+    scraper::Term,
+};
 
 #[instrument(level = "debug", skip(state))]
 pub async fn get(
@@ -23,9 +30,12 @@ pub async fn get(
     let courses = state.courses(schedule.term, &schedule.selected.thin_courses())?;
     let sections = selected_sections(&courses, &schedule.selected);
 
-    Ok(components::base(html! {
-        (components::container::main_container(&schedule_id, &search_courses, &courses, &sections))
-    }, session))
+    Ok(components::base(
+        html! {
+            (components::container::main_container(&schedule_id, &search_courses, &courses, &sections))
+        },
+        session,
+    ))
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -33,7 +43,6 @@ pub struct Create {
     term: String,
     name: String,
 }
-
 
 #[instrument(level = "debug", skip(state))]
 pub async fn post(
@@ -50,14 +59,16 @@ pub async fn post(
     let new_schedule = Schedule {
         name,
         term,
-        selected: SelectedCourses::default()
+        selected: SelectedCourses::default(),
     };
     if state.get_terms().contains(&term) {
         let jar = match session {
             Some(sess) => {
-                let _ = state.set_user_schedule(&sess.user_id, &uuid.to_string(), &new_schedule).await;
+                let _ = state
+                    .set_user_schedule(&sess.user_id, &uuid.to_string(), &new_schedule)
+                    .await;
                 CookieJar::new()
-            },
+            }
             None => CookieJar::new().add(new_schedule.make_cookie(uuid.to_string())),
         };
 
@@ -78,27 +89,25 @@ pub async fn delete(
     session: Option<Session>,
     schedules: Schedules,
 ) -> Result<impl IntoResponse, AppError> {
-    let new_schedules = schedules.schedules.into_iter().filter(|s| !s.id.eq(&schedule_id)).collect();
+    let new_schedules = schedules
+        .schedules
+        .into_iter()
+        .filter(|s| !s.id.eq(&schedule_id))
+        .collect();
     let mut jar = CookieJar::new();
 
     match session {
         Some(sess) => {
-            state.delete_user_schedule(&sess.user_id, &schedule_id).await;
-        },
-        None => { 
-            jar = jar.add(
-                Cookie::build((schedule_id, ""))
-                .path("/")
-                .removal()
-                .build()
-            );
+            state
+                .delete_user_schedule(&sess.user_id, &schedule_id)
+                .await;
+        }
+        None => {
+            jar = jar.add(Cookie::build((schedule_id, "")).path("/").removal().build());
         }
     };
 
-    Ok((
-        jar,
-        schedules::view(new_schedules)
-    ))
+    Ok((jar, schedules::view(new_schedules)))
 }
 
 #[instrument(level = "debug", skip(_state))]
@@ -111,11 +120,15 @@ pub async fn not_found(
 ) -> Result<impl IntoResponse, AppError> {
     let res = next.run(req).await;
     if res.status() == StatusCode::NOT_FOUND {
-        return Ok(components::base(html! {
-            div class="h-full flex items-center justify-center" {
-                "That schedule could not be found."
-            }
-        }, session).into_response());
+        return Ok(components::base(
+            html! {
+                div class="h-full flex items-center justify-center" {
+                    "That schedule could not be found."
+                }
+            },
+            session,
+        )
+        .into_response());
     }
 
     Ok(res)

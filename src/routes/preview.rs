@@ -8,10 +8,11 @@ use maud::html;
 use serde::Deserialize;
 
 use crate::{
-    components::{self}, middlewares::Schedule, scraper::ThinSection
+    common::{selected_sections, AppError, Schedule},
+    components,
+    data::DatabaseAppState,
+    scraper::ThinSection,
 };
-
-use super::{selected_sections, AppError, DatabaseAppState};
 
 fn default_crn() -> u64 {
     0
@@ -27,7 +28,7 @@ pub async fn preview(
     Path(_schedule_id): Path<String>,
     State(state): State<Arc<DatabaseAppState>>,
     Query(Preview { crn }): Query<Preview>,
-    schedule: Schedule
+    schedule: Schedule,
 ) -> Result<impl IntoResponse, AppError> {
     let selected = schedule.selected;
     let previewed = if crn != 0 && !selected.crns().contains(&crn) {
@@ -40,7 +41,5 @@ pub async fn preview(
     let courses = state.courses(schedule.term, &selected.thin_courses())?;
     let sections = selected_sections(&courses, &selected);
 
-    Ok(html!(
-        (components::calendar::view(&sections, &previewed))
-    ))
+    Ok(html!((components::calendar::view(&sections, &previewed))))
 }

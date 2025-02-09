@@ -5,9 +5,9 @@ use serde::Deserialize;
 use tracing::instrument;
 use uuid::Uuid;
 
-use crate::middlewares::Schedule;
+use common::Schedule;
 
-use super::AppError;
+use crate::common::{self, AppError};
 
 #[derive(Deserialize)]
 pub struct Params {
@@ -22,9 +22,7 @@ pub async fn get(Query(Params { blob }): Query<Params>) -> Result<impl IntoRespo
         .map(|s| {
             (
                 StatusCode::FOUND,
-                [
-                    ("location", format!("/schedule/{}", uuid)),
-                ],
+                [("location", format!("/schedule/{}", uuid))],
                 CookieJar::new().add(s.make_cookie(uuid)),
             )
         })
