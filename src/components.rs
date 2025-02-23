@@ -24,14 +24,10 @@ pub fn base(content: Markup, session: Option<Session>) -> Markup {
                     (session.username)
                 }
             }
-            a href="/login" class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 rounded-lg transition px-1 lg:p-1" {
-                "log out"
-            }
+            (components::button::link("/login", html!("log out")))
         ),
         None => html!(
-            a href="/login" class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 rounded-lg transition px-1 lg:p-1" {
-                "log in"
-            }
+            (components::button::link("/login", html!("log in")))
         ),
     };
     html! {
