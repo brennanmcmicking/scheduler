@@ -1,8 +1,8 @@
-use std::{env, net::SocketAddr, path::PathBuf, time::Duration};
+use std::{env, net::SocketAddr, path::PathBuf, str::FromStr, time::Duration};
 
 use anyhow::Context;
-use axum_server::tls_rustls::RustlsConfig;
-use scheduler::{app, common::Stage, scraper};
+use axum_server::{tls_rustls::RustlsConfig, Handle};
+use scheduler::{app, common::Stage, scraper::{self, Term}};
 use tokio::{task, time};
 use tracing::debug;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -29,15 +29,6 @@ async fn main() -> anyhow::Result<()> {
                 )
                 .with(tracing_subscriber::fmt::layer())
                 .init();
-
-            let _forever = task::spawn(async {
-                let mut interval = time::interval(Duration::from_secs(3600)); // once per hour
-                loop {
-                    interval.tick().await;
-                    debug!("running scraper");
-                    let _r = scraper::scrape(true, None).await;
-                }
-            });
         }
         _ => tracing_subscriber::registry()
             .with(
@@ -57,8 +48,6 @@ async fn main() -> anyhow::Result<()> {
     };
     // initialize tracing
 
-    // build our application with a route
-    let app = app::make_app(stage, use_local_dynamo).await;
     // run our app with hyper, listening globally on port
     let config = RustlsConfig::from_pem_file(
         PathBuf::from("/scheduler/fullchain.pem"),
@@ -70,22 +59,52 @@ async fn main() -> anyhow::Result<()> {
         .parse()
         .context("invalid binding socket address")?;
 
+    debug!("starting server");
+    
     // if the TLS certs are present, bind with HTTPS
     // otherwise, run normally
     match config {
         Ok(c) => {
-            axum_server::bind_rustls(soc, c)
-                .serve(app.into_make_service())
-                .await
-                .context("error while serving HTTPS app")?;
+            let mut interval = time::interval(Duration::from_secs(60 * 60)); // every hour
+            let mut app = app::make_app(stage.clone(), use_local_dynamo).await;
+            loop {
+                let handle = Handle::new();
+                let handle_clone = handle.clone();
+                let config_clone = c.clone();
+                task::spawn(async move {
+                    axum_server::bind_rustls(soc, config_clone)
+                        .handle(handle_clone)
+                        .serve(app.into_make_service())
+                        .await
+                        .context("error while serving HTTPS app").unwrap();
+                });
+                interval.tick().await;
+                let _r = scraper::scrape(true, Some(Term::from_str("202409").unwrap())).await;
+                app = app::make_app(stage.clone(), use_local_dynamo).await;
+                handle.shutdown();
+            }
         }
         Err(_e) => {
-            axum_server::bind(soc)
-                .serve(app.into_make_service())
-                .await
-                .context("error while serving HTTP app")?;
+            let mut interval = time::interval(Duration::from_secs(60 * 10)); // every 10 minutes
+            let mut app = app::make_app(stage.clone(), use_local_dynamo).await;
+            loop {
+                let handle = Handle::new();
+                let handle_clone = handle.clone();
+                debug!("shut down old app, binding new app");
+                task::spawn(async move {
+                    axum_server::bind(soc)
+                        .handle(handle_clone)
+                        .serve(app.into_make_service())
+                        .await
+                        .context("error while serving HTTP app").unwrap();
+                });
+                interval.tick().await;
+                debug!("running scraper");
+                let _r = scraper::scrape(true, Some(Term::from_str("202409").unwrap())).await;
+                debug!("done scraping");
+                app = app::make_app(stage.clone(), use_local_dynamo).await;
+                handle.shutdown();
+            }
         }
     }
-
-    Ok(())
 }

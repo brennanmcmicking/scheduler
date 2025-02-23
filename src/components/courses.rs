@@ -130,6 +130,8 @@ fn sections(schedule_id: &String, sections: Vec<&Section>, selected: &[u64]) -> 
 
 pub fn view(schedule_id: &String, courses: &[Course], selected: &[Section]) -> Markup {
     let selected: Vec<u64> = selected.iter().map(|s| s.crn).collect();
+    let share_link = format!("/share/{schedule_id}");
+    let generate_link = format!("/schedule/{schedule_id}/generate");
     debug!(?selected);
 
     html! {
@@ -138,14 +140,8 @@ pub fn view(schedule_id: &String, courses: &[Course], selected: &[Section]) -> M
                 "use the search bar to add some courses"
             } @else {
                 div class="flex justify-between gap-2" {
-                    a class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 transition rounded-lg h-full p-1 my-1 text-xl"
-                    href={"/share/" (schedule_id)} {
-                        "share"
-                    }
-                    a class="bg-green-500 dark:bg-green-600 hover:bg-green-700 hover:dark:bg-green-800 transition rounded-lg h-full p-1 my-1 text-xl"
-                    href={"/schedule/" (schedule_id) "/generate"} {
-                        "generate"
-                    }
+                    (components::button::link(share_link.as_str(), html!("share")))
+                    (components::button::link(generate_link.as_str(), html!("generate")))
                 }
                 @for course in courses {
                     @let lectures: Vec<&Section> = course.sections.iter().filter(|s| s.sequence_code.starts_with("A")).collect();
