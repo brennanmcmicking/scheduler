@@ -19,7 +19,7 @@ use tower_http::{
     trace::{DefaultOnResponse, TraceLayer},
     LatencyUnit,
 };
-use tracing::{debug, debug_span};
+use tracing::{debug, debug_span, info};
 
 use crate::{
     common::{AppError, Stage},
@@ -146,6 +146,7 @@ pub async fn make_app(stage: Stage, use_local_dynamo: bool) -> Router {
         )
         .with_state(state)
         .layer(middleware::from_fn(unauth_redirect))
+        .layer(middleware::from_fn(request_logger))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(|request: &Request<_>| {
@@ -157,6 +158,12 @@ pub async fn make_app(stage: Stage, use_local_dynamo: bool) -> Router {
                 })
                 .on_response(DefaultOnResponse::new().latency_unit(LatencyUnit::Micros)),
         )
+}
+
+async fn request_logger(req: Request, next: Next) -> Result<impl IntoResponse, AppError> {
+    info!("method={}, uri={}", req.method(), req.uri());
+    let res = next.run(req).await;
+    Ok(res)
 }
 
 async fn unauth_redirect(req: Request, next: Next) -> Result<impl IntoResponse, AppError> {
