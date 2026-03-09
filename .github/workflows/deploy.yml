@@ -6,7 +6,7 @@ on:
 
 jobs:
   docker-push:
-    name: Push Docker Image to ECR
+    name: Push Docker Image
     runs-on: ubuntu-latest
     environment: production
 
@@ -24,6 +24,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           tags: main
+          push: true
 
   server-deploy: 
     name: Deploy new Docker image on server
@@ -33,6 +34,7 @@ jobs:
       - name: Execute remote SSH commands using password
         uses: appleboy/ssh-action@v1
         with:
-          host: ${{ secrets.HOST }}
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           script: /home/brennan/scheduler/deploy.sh
