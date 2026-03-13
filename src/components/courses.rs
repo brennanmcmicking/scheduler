@@ -121,7 +121,7 @@ fn sections(schedule_id: &String, sections: Vec<&Section>, selected: &[u64]) -> 
     html!(
         div class="flex flex-col gap-2 py-2 border-t" {
             @for section in sections {
-                (small_section_card(schedule_id, &section.sequence_code, &section, selected.contains(&section.crn)))
+                (small_section_card(schedule_id, &section.sequence_code, section, selected.contains(&section.crn)))
             }
         }
 
@@ -163,15 +163,15 @@ pub fn view(schedule_id: &String, courses: &[Course], selected: &[Section]) -> M
                         }
 
                         @if !lectures.is_empty() {
-                            (sections(&schedule_id, lectures, &selected))
+                            (sections(schedule_id, lectures, &selected))
                         }
 
                         @if !labs.is_empty() {
-                            (sections(&schedule_id, labs, &selected))
+                            (sections(schedule_id, labs, &selected))
                         }
 
                         @if !tutorials.is_empty() {
-                            (sections(&schedule_id, tutorials, &selected))
+                            (sections(schedule_id, tutorials, &selected))
                         }
                     }
                 }
@@ -211,7 +211,7 @@ fn generator_sections(schedule_id: &String, sections: &Vec<Section>) -> Markup {
         div class="flex flex-col gap-2 py-2 border-t" {
             @for section in sections {
                 @let card_title = format!("{} {} {}", &section.subject_code, &section.course_code, &section.sequence_code);
-                (small_section_card(schedule_id, &card_title, &section, true))
+                (small_section_card(schedule_id, &card_title, section, true))
             }
         }
     )

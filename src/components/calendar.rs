@@ -136,7 +136,7 @@ fn render_day(
                     @let conflicts_before: usize = renderable_meetings[0..pos].iter().filter(|other| has_conflict(meeting, other)).collect_vec().len();
                     @let conflicts_after: usize = renderable_meetings[pos+1..renderable_meetings.len()].iter().filter(|other| has_conflict(meeting, other)).collect_vec().len();
 
-                    (render_section_cards(earliest, latest, &meeting, conflicts_before, conflicts_after))
+                    (render_section_cards(earliest, latest, meeting, conflicts_before, conflicts_after))
                 }
             }
         }
