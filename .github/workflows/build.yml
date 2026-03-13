@@ -1,6 +1,6 @@
 on: [push]
 
-name: CI
+name: CI build
 
 # Make sure CI fails on all warnings, including Clippy lints
 env:
