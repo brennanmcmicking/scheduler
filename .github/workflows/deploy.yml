@@ -4,6 +4,8 @@ on:
     branches:
       - main
 
+name: CI deploy
+
 jobs:
   docker-push:
     name: Push Docker Image
